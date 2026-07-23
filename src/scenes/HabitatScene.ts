@@ -268,68 +268,141 @@ export class HabitatScene extends Phaser.Scene {
     this.mapSelectContainer.removeAll(true);
     this.mapSelectContainer.setVisible(true);
 
+    const mapKeys = Object.keys(MAPS_DATA);
+    let currentIndex = mapKeys.indexOf(this.selectedMapId);
+    if (currentIndex < 0) currentIndex = 0;
+
+    // 1. Add Overlay & Modal Box FIRST (Fixes Z-Ordering issue)
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
     const box = this.add
-      .rectangle(width / 2, height / 2, 520, 360, 0x1e293b)
+      .rectangle(width / 2, height / 2, 580, 420, 0x1e293b)
       .setStrokeStyle(3, 0x38b000);
 
     const title = this.add
-      .text(width / 2, height / 2 - 130, 'SELECT BATTLE MAP', {
+      .text(width / 2, height / 2 - 170, 'SELECT BATTLE MAP', {
         fontSize: '24px',
         color: '#ffbe0b',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
-    const maps = [
-      {
-        id: 'heartwood_clearing',
-        name: MAPS_DATA.heartwood_clearing.name,
-        desc: 'Single winding lane (Standard Enemies)',
-        color: 0x0284c7,
-      },
-      {
-        id: 'moonlit_crossing',
-        name: MAPS_DATA.moonlit_crossing.name,
-        desc: 'Dual merging tracks + 2-Phase Boss Void Sovereign!',
-        color: 0x9333ea,
-      },
-    ];
+    this.mapSelectContainer.add([overlay, box, title]);
 
-    maps.forEach((m, idx) => {
-      const cardY = height / 2 - 40 + idx * 95;
-      const isSelected = this.selectedMapId === m.id;
+    // 2. Render Current Map Card & Visual Path Preview
+    const currentMapKey = mapKeys[currentIndex];
+    const mapConfig = MAPS_DATA[currentMapKey];
+    this.selectedMapId = currentMapKey;
 
-      const cardBg = this.add
-        .rectangle(width / 2, cardY, 440, 75, isSelected ? m.color : 0x334155)
-        .setStrokeStyle(2, isSelected ? 0xffbe0b : 0x475569)
-        .setInteractive({ useHandCursor: true });
+    const mapTitle = this.add
+      .text(
+        width / 2,
+        height / 2 - 130,
+        `[ MAP ${currentIndex + 1} / ${mapKeys.length} ]  ${mapConfig.name}`,
+        {
+          fontSize: '18px',
+          color: '#80ed99',
+          fontStyle: 'bold',
+        },
+      )
+      .setOrigin(0.5);
 
-      const nameTxt = this.add.text(width / 2 - 190, cardY - 18, m.name, {
-        fontSize: '18px',
+    const mapDesc = this.add
+      .text(width / 2, height / 2 - 105, mapConfig.description, {
+        fontSize: '13px',
+        color: '#cbd5e1',
+        align: 'center',
+      })
+      .setOrigin(0.5);
+
+    // 3. Mini Path Map Preview Graphics (Visual Preview)
+    const previewW = 380;
+    const previewH = 180;
+    const previewX = width / 2;
+    const previewY = height / 2 + 5;
+
+    const previewBg = this.add
+      .rectangle(previewX, previewY, previewW, previewH, 0x0f172a)
+      .setStrokeStyle(2, 0x334155);
+
+    const previewGfx = this.add.graphics();
+    const scaleX = previewW / width;
+    const scaleY = previewH / height;
+    const offsetX = previewX - previewW / 2;
+    const offsetY = previewY - previewH / 2;
+
+    // Draw Primary Path Track
+    previewGfx.lineStyle(6, 0x38b000, 0.9);
+    previewGfx.beginPath();
+    const p0 = mapConfig.waypoints[0];
+    previewGfx.moveTo(offsetX + Math.max(10, p0.x * scaleX), offsetY + p0.y * scaleY);
+    for (let i = 1; i < mapConfig.waypoints.length; i++) {
+      const pt = mapConfig.waypoints[i];
+      previewGfx.lineTo(offsetX + pt.x * scaleX, offsetY + pt.y * scaleY);
+    }
+    previewGfx.strokePath();
+
+    // Draw Secondary Path Track (if dual path)
+    if (mapConfig.secondaryWaypoints && mapConfig.secondaryWaypoints.length > 0) {
+      previewGfx.lineStyle(6, 0xf72585, 0.9);
+      previewGfx.beginPath();
+      const s0 = mapConfig.secondaryWaypoints[0];
+      previewGfx.moveTo(offsetX + Math.max(10, s0.x * scaleX), offsetY + s0.y * scaleY);
+      for (let i = 1; i < mapConfig.secondaryWaypoints.length; i++) {
+        const pt = mapConfig.secondaryWaypoints[i];
+        previewGfx.lineTo(offsetX + pt.x * scaleX, offsetY + pt.y * scaleY);
+      }
+      previewGfx.strokePath();
+    }
+
+    // Draw Tower Icon on Mini Map
+    const tw = mapConfig.towerPosition;
+    previewGfx.fillStyle(0xffbe0b, 1);
+    previewGfx.fillCircle(offsetX + tw.x * scaleX, offsetY + tw.y * scaleY, 8);
+
+    // 4. Navigation Buttons (PREV `<` and NEXT `>`)
+    const prevBtn = this.add
+      .rectangle(width / 2 - 245, previewY, 44, 80, 0x334155)
+      .setStrokeStyle(2, 0x475569)
+      .setInteractive({ useHandCursor: true });
+    const prevTxt = this.add
+      .text(width / 2 - 245, previewY, '◄', {
+        fontSize: '22px',
         color: '#ffffff',
         fontStyle: 'bold',
-      });
+      })
+      .setOrigin(0.5);
 
-      const descTxt = this.add.text(width / 2 - 190, cardY + 8, m.desc, {
-        fontSize: '12px',
-        color: '#cbd5e1',
-      });
+    const nextBtn = this.add
+      .rectangle(width / 2 + 245, previewY, 44, 80, 0x334155)
+      .setStrokeStyle(2, 0x475569)
+      .setInteractive({ useHandCursor: true });
+    const nextTxt = this.add
+      .text(width / 2 + 245, previewY, '►', {
+        fontSize: '22px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
 
-      cardBg.on('pointerdown', () => {
-        this.selectedMapId = m.id;
-        this.openMapSelectionModal();
-      });
-
-      this.mapSelectContainer.add([cardBg, nameTxt, descTxt]);
+    prevBtn.on('pointerdown', () => {
+      currentIndex = (currentIndex - 1 + mapKeys.length) % mapKeys.length;
+      this.selectedMapId = mapKeys[currentIndex];
+      this.openMapSelectionModal();
     });
 
+    nextBtn.on('pointerdown', () => {
+      currentIndex = (currentIndex + 1) % mapKeys.length;
+      this.selectedMapId = mapKeys[currentIndex];
+      this.openMapSelectionModal();
+    });
+
+    // 5. Start Defense Run Button
     const startBtn = this.add
-      .rectangle(width / 2, height / 2 + 130, 200, 42, 0xf72585)
+      .rectangle(width / 2, height / 2 + 150, 220, 44, 0xf72585)
       .setInteractive({ useHandCursor: true });
     const startTxt = this.add
-      .text(width / 2, height / 2 + 130, 'START DEFENSE RUN ⚔️', {
-        fontSize: '14px',
+      .text(width / 2, height / 2 + 150, 'START DEFENSE RUN ⚔️', {
+        fontSize: '15px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
@@ -340,7 +413,34 @@ export class HabitatScene extends Phaser.Scene {
       this.startDefenseRun();
     });
 
-    this.mapSelectContainer.add([overlay, box, title, startBtn, startTxt]);
+    // Close Button
+    const closeBtn = this.add
+      .rectangle(width / 2 + 245, height / 2 - 170, 30, 30, 0xef4444)
+      .setInteractive({ useHandCursor: true });
+    const closeTxt = this.add
+      .text(width / 2 + 245, height / 2 - 170, '✕', {
+        fontSize: '16px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    closeBtn.on('pointerdown', () => this.mapSelectContainer.setVisible(false));
+
+    this.mapSelectContainer.add([
+      mapTitle,
+      mapDesc,
+      previewBg,
+      previewGfx,
+      prevBtn,
+      prevTxt,
+      nextBtn,
+      nextTxt,
+      startBtn,
+      startTxt,
+      closeBtn,
+      closeTxt,
+    ]);
   }
 
   private showTutorialModal(): void {
