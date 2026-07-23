@@ -51,32 +51,32 @@ describe('TraitEngine Tests', () => {
   });
 
   it('applies stat_multiplier trait effect correctly', () => {
-    const sharpClaws = TRAITS_DATA.sharp_claws; // +25% attack damage
+    const sharpClaws = TRAITS_DATA.sharp_claws; // * 1.2 attack damage
     const initialDamage = runState.petStats.attackDamage;
 
     traitEngine.applyTrait(sharpClaws, runState);
 
-    expect(runState.petStats.attackDamage).toBeCloseTo(initialDamage * 1.25);
+    expect(runState.petStats.attackDamage).toBeCloseTo(initialDamage * 1.2);
     expect(runState.activeTraits).toContain('sharp_claws');
   });
 
-  it('applies flat_stat trait effect correctly', () => {
-    const vitalitySurge = TRAITS_DATA.vitality_surge; // +30 max HP
+  it('applies maxHp multiplier trait effect correctly', () => {
+    const ironHide = TRAITS_DATA.iron_hide; // * 1.3 max HP
     const initialHp = runState.petStats.maxHp;
 
-    traitEngine.applyTrait(vitalitySurge, runState);
+    traitEngine.applyTrait(ironHide, runState);
 
-    expect(runState.petStats.maxHp).toBe(initialHp + 30);
-    expect(runState.activeTraits).toContain('vitality_surge');
+    expect(runState.petStats.maxHp).toBeCloseTo(initialHp * 1.3);
+    expect(runState.activeTraits).toContain('iron_hide');
   });
 
   it('calculates modified stats from trait IDs list', () => {
     const modified = traitEngine.calculateModifiedStats(DEFAULT_CREATURE_STATS, [
       'sharp_claws',
-      'vitality_surge',
+      'iron_hide',
     ]);
 
-    expect(modified.attackDamage).toBeCloseTo(DEFAULT_CREATURE_STATS.attackDamage * 1.25);
-    expect(modified.maxHp).toBe(DEFAULT_CREATURE_STATS.maxHp + 30);
+    expect(modified.attackDamage).toBeCloseTo(DEFAULT_CREATURE_STATS.attackDamage * 1.2);
+    expect(modified.maxHp).toBeCloseTo(DEFAULT_CREATURE_STATS.maxHp * 1.3);
   });
 });

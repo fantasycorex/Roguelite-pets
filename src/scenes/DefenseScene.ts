@@ -6,6 +6,7 @@ import { CombatEngine } from '../core/combat/CombatEngine';
 import { BattleRunState, ActiveEnemy } from '../core/state/BattleRunState';
 import { DEFAULT_CREATURE_STATS } from '../data/creatures.data';
 import { WAVES_DATA } from '../data/waves.data';
+import { TRAITS_DATA } from '../data/traits.data';
 import { CreatureStats } from '../types/creature';
 import { EquipmentConfig } from '../types/equipment';
 import { runRewardSettlementService } from '../core/services/RunRewardSettlementService';
@@ -26,6 +27,7 @@ export class DefenseScene extends Phaser.Scene {
   private waveText!: Phaser.GameObjects.Text;
   private coinsText!: Phaser.GameObjects.Text;
   private bannerText!: Phaser.GameObjects.Text;
+  private buildHudText!: Phaser.GameObjects.Text;
   private speedBtnText!: Phaser.GameObjects.Text;
   private pauseBtnText!: Phaser.GameObjects.Text;
   private pathGraphics!: Phaser.GameObjects.Graphics;
@@ -78,24 +80,24 @@ export class DefenseScene extends Phaser.Scene {
     // Initialize CombatEngine
     this.combatEngine = new CombatEngine(waypoints, towerPos, this.runState);
 
-    // UI Header with dynamic total wave count
+    // UI Header with dynamic wave & seed
     this.waveText = this.add
-      .text(width / 2, 30, `WAVE 1 / ${WAVES_DATA.length}`, {
-        fontSize: '24px',
+      .text(width / 2, 25, `WAVE 1 / ${WAVES_DATA.length}  (Seed: #${this.runState.runSeed})`, {
+        fontSize: '20px',
         color: '#f72585',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
-    this.coinsText = this.add.text(width - 160, 30, 'Coins: 0', {
-      fontSize: '20px',
+    this.coinsText = this.add.text(width - 160, 25, 'Coins: 0', {
+      fontSize: '18px',
       color: '#ffbe0b',
       fontStyle: 'bold',
     });
 
     this.towerHpText = this.add
       .text(towerPos.x - 120, towerPos.y - 65, 'Tower HP: 100/100', {
-        fontSize: '15px',
+        fontSize: '14px',
         color: '#80ed99',
         fontStyle: 'bold',
       })
@@ -107,7 +109,7 @@ export class DefenseScene extends Phaser.Scene {
         towerPos.y - 65,
         `Pet HP: ${this.runState.creatureCurrentHp}/${this.runState.creatureMaxHp}`,
         {
-          fontSize: '15px',
+          fontSize: '14px',
           color: '#4cc9f0',
           fontStyle: 'bold',
         },
@@ -122,13 +124,21 @@ export class DefenseScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Current Build HUD Panel
+    this.add.rectangle(140, height - 40, 260, 50, 0x0f172a, 0.9).setStrokeStyle(1, 0x334155);
+    this.buildHudText = this.add.text(20, height - 58, 'Build: None', {
+      fontSize: '12px',
+      color: '#80ed99',
+      fontStyle: 'bold',
+    });
+
     // Developer Speed & Pause Controls
     const speedBtn = this.add
-      .rectangle(width - 320, 35, 70, 32, 0x334155)
+      .rectangle(width - 320, 30, 70, 30, 0x334155)
       .setInteractive({ useHandCursor: true });
     this.speedBtnText = this.add
-      .text(width - 320, 35, '⚡ 1x', {
-        fontSize: '13px',
+      .text(width - 320, 30, '⚡ 1x', {
+        fontSize: '12px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
@@ -144,11 +154,11 @@ export class DefenseScene extends Phaser.Scene {
     });
 
     const pauseBtn = this.add
-      .rectangle(width - 230, 35, 70, 32, 0x334155)
+      .rectangle(width - 230, 30, 70, 30, 0x334155)
       .setInteractive({ useHandCursor: true });
     this.pauseBtnText = this.add
-      .text(width - 230, 35, '⏸️ PAUSE', {
-        fontSize: '12px',
+      .text(width - 230, 30, '⏸️ PAUSE', {
+        fontSize: '11px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
@@ -162,11 +172,11 @@ export class DefenseScene extends Phaser.Scene {
 
     // Back Button
     const btn = this.add
-      .rectangle(100, 40, 140, 40, 0x475569)
+      .rectangle(90, 30, 120, 32, 0x475569)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(100, 40, '← HABITAT', {
-        fontSize: '14px',
+      .text(90, 30, '← HABITAT', {
+        fontSize: '13px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
@@ -377,7 +387,9 @@ export class DefenseScene extends Phaser.Scene {
 
   private onWaveStarted = (data: unknown): void => {
     const { waveIndex } = data as { waveIndex: number };
-    this.waveText.setText(`WAVE ${waveIndex} / ${WAVES_DATA.length}`);
+    this.waveText.setText(
+      `WAVE ${waveIndex} / ${WAVES_DATA.length}  (Seed: #${this.runState.runSeed})`,
+    );
     this.bannerText.setText(`WAVE ${waveIndex} START!`);
     this.time.delayedCall(1200, () => this.bannerText.setText(''));
   };
@@ -402,19 +414,45 @@ export class DefenseScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const offers = this.combatEngine.getTraitOffers();
 
+    this.renderTraitCards(offers, width, height);
+  }
+
+  private renderTraitCards(offers: TraitConfig[], width: number, height: number): void {
     this.traitModalContainer.removeAll(true);
     this.traitModalContainer.setVisible(true);
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75);
     const modalTitle = this.add
-      .text(width / 2, 120, 'CHOOSE A TRAIT UPGRADE', {
-        fontSize: '28px',
+      .text(width / 2, 90, 'CHOOSE A TRAIT UPGRADE', {
+        fontSize: '26px',
         color: '#ffbe0b',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
-    this.traitModalContainer.add([overlay, modalTitle]);
+    // Reroll Button
+    const canReroll = this.runState.rerollsRemaining > 0;
+    const rerollBtn = this.add
+      .rectangle(width / 2, 135, 160, 32, canReroll ? 0x0284c7 : 0x475569)
+      .setInteractive({ useHandCursor: canReroll });
+
+    const rerollTxt = this.add
+      .text(width / 2, 135, `🎲 REROLL (${this.runState.rerollsRemaining})`, {
+        fontSize: '12px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    rerollBtn.on('pointerdown', () => {
+      const newOffers = this.combatEngine.rerollTraitOffers();
+      if (newOffers) {
+        soundEngine.playCoinSound();
+        this.renderTraitCards(newOffers, width, height);
+      }
+    });
+
+    this.traitModalContainer.add([overlay, modalTitle, rerollBtn, rerollTxt]);
 
     const cardWidth = 220;
     const cardHeight = 260;
@@ -423,7 +461,7 @@ export class DefenseScene extends Phaser.Scene {
 
     offers.forEach((trait, i) => {
       const cardX = startX + i * (cardWidth + spacing);
-      const cardY = height / 2 + 20;
+      const cardY = height / 2 + 30;
 
       const cardBg = this.add
         .rectangle(cardX, cardY, cardWidth, cardHeight, 0x1e293b, 0.95)
@@ -435,15 +473,15 @@ export class DefenseScene extends Phaser.Scene {
 
       const title = this.add
         .text(cardX, cardY - 80, trait.name, {
-          fontSize: '18px',
+          fontSize: '17px',
           color: '#ffffff',
           fontStyle: 'bold',
         })
         .setOrigin(0.5);
 
-      const rarityBadge = this.add
-        .text(cardX, cardY - 50, trait.rarity.toUpperCase(), {
-          fontSize: '12px',
+      const familyBadge = this.add
+        .text(cardX, cardY - 50, `${trait.family.toUpperCase()} • ${trait.rarity.toUpperCase()}`, {
+          fontSize: '11px',
           color:
             trait.rarity === 'epic' ? '#f72585' : trait.rarity === 'rare' ? '#4cc9f0' : '#80ed99',
           fontStyle: 'bold',
@@ -452,7 +490,7 @@ export class DefenseScene extends Phaser.Scene {
 
       const desc = this.add
         .text(cardX, cardY, trait.description, {
-          fontSize: '14px',
+          fontSize: '13px',
           color: '#cbd5e1',
           align: 'center',
           wordWrap: { width: cardWidth - 30 },
@@ -471,11 +509,12 @@ export class DefenseScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
 
-      this.traitModalContainer.add([cardBg, title, rarityBadge, desc, selectBtn, btnTxt]);
+      this.traitModalContainer.add([cardBg, title, familyBadge, desc, selectBtn, btnTxt]);
 
       const onSelect = () => {
         soundEngine.playCoinSound();
         this.combatEngine.selectTraitOffer(trait);
+        this.updateBuildHud();
         this.traitModalContainer.setVisible(false);
         phaseManager.setPhase(GamePhase.DEFENSE);
 
@@ -486,6 +525,20 @@ export class DefenseScene extends Phaser.Scene {
       cardBg.on('pointerdown', onSelect);
       selectBtn.on('pointerdown', onSelect);
     });
+  }
+
+  private updateBuildHud(): void {
+    if (this.runState.activeTraits.length === 0) {
+      this.buildHudText.setText('Build: None');
+      return;
+    }
+
+    const traitNames = this.runState.activeTraits
+      .map((id) => TRAITS_DATA[id]?.name || id)
+      .slice(-3);
+    this.buildHudText.setText(
+      `Build (${this.runState.activeTraits.length}): ${traitNames.join(', ')}`,
+    );
   }
 
   private onTowerDestroyed = (): void => {
@@ -554,7 +607,7 @@ export class DefenseScene extends Phaser.Scene {
 
     let returned = false;
     contBtn.on('pointerdown', () => {
-      if (returned) return; // Prevent double trigger
+      if (returned) return;
       returned = true;
       this.cleanupEvents();
       this.scene.start('HabitatScene');

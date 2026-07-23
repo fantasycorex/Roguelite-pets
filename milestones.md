@@ -102,11 +102,13 @@
 - [x] Exit condition: 3 creatures require noticeably different combat decisions and stat scaling.
 
 ### Milestone 11 — Roguelite Build System 2.0
-- [ ] Expanded trait triggers: `on_hit`, `on_kill`, `on_critical`, `on_special`, `on_tower_damaged`, `periodic`, `status_application`, `ability_modifier`, `conditional_stat`, `tower_support`.
-- [ ] 4 core build families: Ferocity, Swiftness, Elemental, Guardian, Companion.
-- [ ] Trait tags, stack limits, prerequisites, and upgrade chains.
-- [ ] Weighted rarity, duplicate protection, 1 reroll per wave, and current-build HUD panel.
-- [ ] Target pool of 20–24 traits for alpha.
+- [x] Expanded trait triggers: `on_hit`, `on_kill`, `on_critical`, `on_special`, `on_tower_damaged`, `periodic`, `status_application`, `ability_modifier`, `conditional_stat`, `tower_support`.
+- [x] 5 core build families: Ferocity, Swiftness, Elemental, Guardian, Companion.
+- [x] Trait tags, stack limits, prerequisites, and upgrade chains.
+- [x] Weighted rarity drafting, duplicate protection, 1 reroll per wave (`🎲 REROLL (1)`).
+- [x] Current-build HUD panel & run seed display in DefenseScene (`Seed: #12345`).
+- [x] Target pool of 20 traits across 5 build families.
+- [x] Exit condition: At least 4 recognisably different builds viable across repeated runs.
 
 ### Milestone 12 — Maps, Enemies and Boss Encounter
 - [ ] Map 1 — Heartwood Clearing (Introductory layout).

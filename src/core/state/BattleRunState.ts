@@ -55,6 +55,7 @@ export class BattleRunState {
   public petSpecialCooldownTimer: number = 0;
   public hasSpecialAbility: boolean = false;
   public targetingMode: TargetingMode = 'closest_to_tower';
+  public rerollsRemaining: number = 1;
 
   public activeEnemies: Map<string, ActiveEnemy> = new Map();
   public activeProjectiles: ActiveProjectile[] = [];
@@ -86,6 +87,7 @@ export class BattleRunState {
     this.creatureCurrentHp = petStats.maxHp;
     this.isCreatureDowned = false;
     this.creatureDownedTimer = 0;
+    this.rerollsRemaining = 1;
     this.activeEnemies.clear();
     this.activeProjectiles = [];
     this.activeTraits = [];

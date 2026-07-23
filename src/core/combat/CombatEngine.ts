@@ -40,8 +40,20 @@ export class CombatEngine {
     this.runState.activeEnemies.clear();
     this.runState.activeProjectiles = [];
     this.runState.activeStatusEffects.clear();
+    this.runState.rerollsRemaining = 1; // 1 Reroll per wave
     this.waveElapsedTimeMs = 0;
     this.spawnQueue = [];
+
+    // Process 'tower_support' wave start traits (e.g. Tower Sentinel repair)
+    for (const traitId of this.runState.activeTraits) {
+      const trait = TRAITS_DATA[traitId];
+      if (trait && trait.effect.type === 'tower_support') {
+        this.runState.towerHp = Math.min(
+          this.runState.maxTowerHp,
+          this.runState.towerHp + trait.effect.value,
+        );
+      }
+    }
 
     let currentOffset = 500; // start 500ms into wave
     for (const group of waveConfig.enemies) {
@@ -64,7 +76,13 @@ export class CombatEngine {
   }
 
   public getTraitOffers(): TraitConfig[] {
-    return this.traitEngine.generateTraitOffers(3);
+    return this.traitEngine.generateTraitOffers(3, this.runState.activeTraits);
+  }
+
+  public rerollTraitOffers(): TraitConfig[] | null {
+    if (this.runState.rerollsRemaining <= 0) return null;
+    this.runState.rerollsRemaining--;
+    return this.getTraitOffers();
   }
 
   // Developer Controls
@@ -80,7 +98,6 @@ export class CombatEngine {
   public update(deltaSeconds: number): void {
     if (!this.isWaveActive || this.runState.isPaused) return;
 
-    // Apply timeScale
     const scaledDelta = deltaSeconds * this.runState.timeScale;
     const deltaMs = scaledDelta * 1000;
     this.waveElapsedTimeMs += deltaMs;
@@ -151,7 +168,6 @@ export class CombatEngine {
     const baseAngularSpeed = 1.5;
     let speedFactor = (this.runState.petStats.moveSpeed || 100) / 100;
 
-    // Slow status effect on creature
     if (this.hasStatusEffect('creature', 'slow')) {
       speedFactor *= 0.5;
     }
@@ -179,12 +195,10 @@ export class CombatEngine {
         continue;
       }
 
-      // Check stun
       if (this.hasStatusEffect(enemy.instanceId, 'stun')) {
-        continue; // Stunned enemies do not move or attack
+        continue;
       }
 
-      // Calculate effective move speed with slow effect
       let effectiveSpeed = enemy.config.moveSpeed;
       if (this.hasStatusEffect(enemy.instanceId, 'slow')) {
         effectiveSpeed *= 0.5;
@@ -193,14 +207,12 @@ export class CombatEngine {
       const behaviour = enemy.config.behaviour;
       const distToPet = Math.hypot(enemy.x - this.runState.petX, enemy.y - this.runState.petY);
 
-      // Tank behavior: stop and fight creature if in attack range
       if (
         behaviour?.style === 'fight_creature' &&
         !this.runState.isCreatureDowned &&
-        distToPet <= (behaviour.attackRange || 70)
+        distToPet <= (behaviour.attackRange || 95)
       ) {
         enemy.isFightingCreature = true;
-        // Attack creature periodically
         this.damageCreature(
           enemy.instanceId,
           behaviour.attackDamage * deltaSeconds,
@@ -214,9 +226,11 @@ export class CombatEngine {
         enemy.x = pos.x;
         enemy.y = pos.y;
 
-        // Check reached tower
         if (pos.reachedEnd) {
           this.runState.towerHp = Math.max(0, this.runState.towerHp - enemy.config.damageToTower);
+
+          // Process 'on_tower_damaged' traits (e.g., Aegis Shield barrier)
+          this.triggerOnTowerDamaged(enemy.config.damageToTower);
 
           const dmgEvent: DamageEvent = {
             sourceId: enemy.instanceId,
@@ -252,6 +266,21 @@ export class CombatEngine {
     }
   }
 
+  private triggerOnTowerDamaged(_damage: number): void {
+    for (const traitId of this.runState.activeTraits) {
+      const trait = TRAITS_DATA[traitId];
+      if (trait && trait.effect.type === 'on_tower_damaged') {
+        if (trait.effect.statusType === 'shield') {
+          this.applyStatusEffect('creature', {
+            type: 'shield',
+            duration: 8.0,
+            value: trait.effect.value,
+          });
+        }
+      }
+    }
+  }
+
   private damageCreature(
     sourceId: string,
     damageAmount: number,
@@ -259,30 +288,46 @@ export class CombatEngine {
   ): void {
     if (this.runState.isCreatureDowned) return;
 
-    this.runState.creatureCurrentHp = Math.max(0, this.runState.creatureCurrentHp - damageAmount);
+    let finalDamage = damageAmount;
 
-    const dmgEvent: DamageEvent = {
-      sourceId,
-      targetId: 'creature',
-      targetType: 'creature',
-      damage: damageAmount,
-    };
-    eventBus.emit('DAMAGE_DEALT', dmgEvent);
-    eventBus.emit('CREATURE_DAMAGED', {
-      currentHp: this.runState.creatureCurrentHp,
-      maxHp: this.runState.creatureMaxHp,
-    });
-
-    if (statusEffects) {
-      for (const eff of statusEffects) {
-        this.applyStatusEffect('creature', eff, sourceId);
+    // Check shield absorption
+    const shields =
+      this.runState.activeStatusEffects.get('creature')?.filter((e) => e.type === 'shield') || [];
+    for (const shield of shields) {
+      if (shield.value > 0) {
+        const absorbed = Math.min(shield.value, finalDamage);
+        shield.value -= absorbed;
+        finalDamage -= absorbed;
+        if (finalDamage <= 0) break;
       }
     }
 
-    if (this.runState.creatureCurrentHp <= 0) {
-      this.runState.isCreatureDowned = true;
-      this.runState.creatureDownedTimer = 5.0; // 5 sec revive timer
-      eventBus.emit('CREATURE_DOWNED', { reviveTime: 5.0 });
+    if (finalDamage > 0) {
+      this.runState.creatureCurrentHp = Math.max(0, this.runState.creatureCurrentHp - finalDamage);
+
+      const dmgEvent: DamageEvent = {
+        sourceId,
+        targetId: 'creature',
+        targetType: 'creature',
+        damage: finalDamage,
+      };
+      eventBus.emit('DAMAGE_DEALT', dmgEvent);
+      eventBus.emit('CREATURE_DAMAGED', {
+        currentHp: this.runState.creatureCurrentHp,
+        maxHp: this.runState.creatureMaxHp,
+      });
+
+      if (statusEffects) {
+        for (const eff of statusEffects) {
+          this.applyStatusEffect('creature', eff, sourceId);
+        }
+      }
+
+      if (this.runState.creatureCurrentHp <= 0) {
+        this.runState.isCreatureDowned = true;
+        this.runState.creatureDownedTimer = 5.0; // 5 sec revive timer
+        eventBus.emit('CREATURE_DOWNED', { reviveTime: 5.0 });
+      }
     }
   }
 
@@ -292,13 +337,12 @@ export class CombatEngine {
     this.runState.creatureDownedTimer -= deltaSeconds;
     if (this.runState.creatureDownedTimer <= 0) {
       this.runState.isCreatureDowned = false;
-      this.runState.creatureCurrentHp = Math.round(this.runState.creatureMaxHp * 0.5); // Revive with 50% HP
+      this.runState.creatureCurrentHp = Math.round(this.runState.creatureMaxHp * 0.5);
       eventBus.emit('CREATURE_REVIVED', { currentHp: this.runState.creatureCurrentHp });
     }
   }
 
   private updatePetCombat(deltaSeconds: number): void {
-    // Normal attack cooldown
     if (this.runState.petAttackCooldownTimer > 0) {
       this.runState.petAttackCooldownTimer -= deltaSeconds;
     }
@@ -322,7 +366,6 @@ export class CombatEngine {
       }
     }
 
-    // Special Ability cooldown (data-driven ability)
     const hasSpecialUnlocked =
       this.runState.hasSpecialAbility ||
       this.runState.activeTraits.some((id) => TRAITS_DATA[id]?.effect.type === 'special_ability');
@@ -343,7 +386,18 @@ export class CombatEngine {
     enemy.state = 'DYING';
     enemy.rewardGranted = true;
 
-    const loot = LootEngine.rollLoot(enemy.config, this.rng, 30); // 30% equip drop chance
+    // Process 'on_kill' traits (e.g. Bloodthirst healing)
+    for (const traitId of this.runState.activeTraits) {
+      const trait = TRAITS_DATA[traitId];
+      if (trait && trait.effect.type === 'on_kill') {
+        this.runState.creatureCurrentHp = Math.min(
+          this.runState.creatureMaxHp,
+          this.runState.creatureCurrentHp + trait.effect.value,
+        );
+      }
+    }
+
+    const loot = LootEngine.rollLoot(enemy.config, this.rng, 30);
 
     this.runState.coinsCollected += loot.coins;
     this.runState.expEarned += loot.exp;
@@ -418,6 +472,29 @@ export class CombatEngine {
 
   private fireProjectile(target: ActiveEnemy): void {
     const ability = ABILITIES_DATA.basic_laser;
+    let baseDamage = this.runState.petStats.attackDamage || ability.damage;
+
+    // Process 'on_hit' / 'on_critical' trait calculations
+    let isCrit = false;
+    for (const traitId of this.runState.activeTraits) {
+      const trait = TRAITS_DATA[traitId];
+      if (trait && trait.effect.type === 'on_critical' && trait.effect.chance) {
+        if (this.rng.nextFloat() <= trait.effect.chance) {
+          isCrit = true;
+          baseDamage *= trait.effect.value;
+          break;
+        }
+      }
+    }
+
+    // Execute low-HP enemy bonus damage
+    for (const traitId of this.runState.activeTraits) {
+      const trait = TRAITS_DATA[traitId];
+      if (trait && trait.id === 'execute_blade' && target.currentHp / target.maxHp <= 0.3) {
+        baseDamage *= trait.effect.value;
+      }
+    }
+
     const projectile: ActiveProjectile = {
       id: `proj_${Date.now()}_${Math.random()}`,
       startX: this.runState.petX,
@@ -425,13 +502,13 @@ export class CombatEngine {
       targetX: target.x,
       targetY: target.y,
       targetEnemyInstanceId: target.instanceId,
-      damage: this.runState.petStats.attackDamage || ability.damage,
+      damage: baseDamage,
       progress: 0,
-      speed: 4.0, // progress units per sec
+      speed: 4.0,
     };
 
     this.runState.activeProjectiles.push(projectile);
-    eventBus.emit('CREATURE_ATTACKED', { targetX: target.x, targetY: target.y });
+    eventBus.emit('CREATURE_ATTACKED', { targetX: target.x, targetY: target.y, isCrit });
   }
 
   private updateProjectiles(deltaSeconds: number): void {
@@ -447,9 +524,27 @@ export class CombatEngine {
       }
 
       if (proj.progress >= 1.0) {
-        // Impact
         if (targetEnemy && targetEnemy.state === 'ALIVE') {
           targetEnemy.currentHp -= proj.damage;
+
+          // Apply status effects on hit (Ignite Touch burn, Frost Touch slow, Stun)
+          for (const traitId of this.runState.activeTraits) {
+            const trait = TRAITS_DATA[traitId];
+            if (trait && trait.effect.type === 'status_application' && trait.effect.statusType) {
+              const chance = trait.effect.chance || 1.0;
+              if (this.rng.nextFloat() <= chance) {
+                this.applyStatusEffect(
+                  targetEnemy.instanceId,
+                  {
+                    type: trait.effect.statusType as StatusEffectType,
+                    duration: trait.effect.value,
+                    value: trait.effect.statusType === 'burn' ? 5 : 0.5,
+                  },
+                  'creature',
+                );
+              }
+            }
+          }
 
           const dmgEvent: DamageEvent = {
             sourceId: 'creature',
@@ -489,7 +584,6 @@ export class CombatEngine {
       this.runState.activeStatusEffects.set(targetId, list);
     }
 
-    // Refresh existing effect duration if present
     const existing = list.find((e) => e.type === effectConfig.type);
     if (existing) {
       existing.durationRemaining = Math.max(existing.durationRemaining, effectConfig.duration);
@@ -521,12 +615,10 @@ export class CombatEngine {
       for (const eff of list) {
         eff.durationRemaining -= deltaSeconds;
 
-        // Periodic tick effects (burn, poison)
         if ((eff.type === 'burn' || eff.type === 'poison') && eff.tickInterval) {
           eff.tickTimer = (eff.tickTimer || 0) - deltaSeconds;
           if (eff.tickTimer <= 0) {
             eff.tickTimer = eff.tickInterval;
-            // Deal tick damage
             if (targetId === 'creature') {
               this.damageCreature(eff.sourceId || 'status', eff.value);
             } else {

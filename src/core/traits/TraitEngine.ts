@@ -12,11 +12,53 @@ export class TraitEngine {
   }
 
   /**
-   * Generates N unique random trait choices from pool
+   * Generates N weighted, eligible trait choices respecting prerequisites, stack limits, and duplicate protection
    */
-  public generateTraitOffers(count: number = 3): TraitConfig[] {
+  public generateTraitOffers(count: number = 3, activeTraits: string[] = []): TraitConfig[] {
     const allTraits = Object.values(TRAITS_DATA);
-    return this.rng.sample(allTraits, count);
+
+    // Count current active trait stacks
+    const stackCounts: Record<string, number> = {};
+    for (const id of activeTraits) {
+      stackCounts[id] = (stackCounts[id] || 0) + 1;
+    }
+
+    // Filter eligible traits
+    const eligible = allTraits.filter((t) => {
+      // 1. Stack limit check
+      if (t.maxStacks && (stackCounts[t.id] || 0) >= t.maxStacks) {
+        return false;
+      }
+      // 2. Prerequisites check
+      if (t.prerequisites && t.prerequisites.length > 0) {
+        const hasAllPrereqs = t.prerequisites.every((preId) => activeTraits.includes(preId));
+        if (!hasAllPrereqs) return false;
+      }
+      return true;
+    });
+
+    if (eligible.length === 0) return [];
+
+    // Weighted random sampling without replacement
+    const offers: TraitConfig[] = [];
+    const pool = [...eligible];
+
+    while (offers.length < count && pool.length > 0) {
+      const totalWeight = pool.reduce((sum, t) => sum + (t.weight || 100), 0);
+      let rand = this.rng.nextFloat() * totalWeight;
+
+      for (let i = 0; i < pool.length; i++) {
+        const t = pool[i];
+        rand -= t.weight || 100;
+        if (rand <= 0) {
+          offers.push(t);
+          pool.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    return offers;
   }
 
   /**
@@ -33,6 +75,8 @@ export class TraitEngine {
       runState.petStats[effect.targetStat] = current + effect.value;
     } else if (effect.type === 'special_ability') {
       runState.hasSpecialAbility = true;
+    } else if (effect.type === 'tower_support') {
+      runState.towerHp = Math.min(runState.maxTowerHp, runState.towerHp + effect.value);
     }
 
     // Sync HP changes
