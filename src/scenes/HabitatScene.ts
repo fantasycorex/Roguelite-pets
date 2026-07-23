@@ -3,14 +3,17 @@ import { GamePhase } from '../types/phase';
 import { phaseManager } from '../core/state/PhaseManager';
 import { eventBus } from '../core/events/EventBus';
 import { PetCareEngine } from '../core/pet/PetCareEngine';
-import { PermanentCreatureProfile } from '../types/creature';
+import { OwnedCreature, PermanentCreatureProfile } from '../types/creature';
 import { EquipmentEngine } from '../core/equipment/EquipmentEngine';
 import { EQUIPMENT_DATA } from '../data/equipment.data';
+import { SPECIES_DATA } from '../data/species.data';
 import { SaveManager } from '../core/save/SaveManager';
+import { CreatureEngine } from '../core/creature/CreatureEngine';
 import { soundEngine } from '../core/audio/SoundEngine';
 
 export class HabitatScene extends Phaser.Scene {
-  private profile!: PermanentCreatureProfile;
+  private activeCreature!: OwnedCreature;
+  private ownedCreatures: OwnedCreature[] = [];
   private inventory: string[] = [];
   private totalCoins: number = 0;
   private tutorialCompleted: boolean = false;
@@ -27,6 +30,7 @@ export class HabitatScene extends Phaser.Scene {
   private inventoryContainer!: Phaser.GameObjects.Container;
   private devModalContainer!: Phaser.GameObjects.Container;
   private tutorialContainer!: Phaser.GameObjects.Container;
+  private evolveBtnContainer!: Phaser.GameObjects.Container;
 
   constructor() {
     super({ key: 'HabitatScene' });
@@ -38,7 +42,8 @@ export class HabitatScene extends Phaser.Scene {
 
   private refreshFromSaveData(): void {
     const saveData = SaveManager.loadGame();
-    this.profile = saveData.creatureProfile;
+    this.ownedCreatures = saveData.ownedCreatures;
+    this.activeCreature = SaveManager.getActiveCreature(saveData);
     this.inventory = saveData.inventory;
     this.totalCoins = saveData.totalCoins;
     this.tutorialCompleted = saveData.tutorialCompleted;
@@ -46,11 +51,29 @@ export class HabitatScene extends Phaser.Scene {
 
   private persistState(): void {
     SaveManager.updateSaveData({
-      creatureProfile: this.profile,
+      activeCreatureInstanceId: this.activeCreature.instanceId,
+      ownedCreatures: this.ownedCreatures,
       inventory: this.inventory,
       totalCoins: this.totalCoins,
       tutorialCompleted: this.tutorialCompleted,
     });
+  }
+
+  // Convert OwnedCreature to legacy profile payload for care engine compatibility
+  private getProfileFromOwned(c: OwnedCreature): PermanentCreatureProfile {
+    const effectiveStats = CreatureEngine.getEffectiveStats(c);
+    const equippedItemId = c.equippedItems.accessory || null;
+    return {
+      id: c.instanceId,
+      name: c.nickname,
+      level: c.level,
+      currentExp: c.currentExp,
+      hunger: 100 - c.fullness,
+      affection: c.affection,
+      lastCareTimestamp: Date.now(),
+      equippedItemId,
+      baseStats: effectiveStats,
+    };
   }
 
   create(): void {
@@ -63,14 +86,14 @@ export class HabitatScene extends Phaser.Scene {
 
     // Header Title & Coins
     this.add
-      .text(width / 2, 40, 'PET HABITAT', {
-        fontSize: '32px',
+      .text(width / 2, 35, 'PET HABITAT', {
+        fontSize: '28px',
         color: '#f72585',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
-    this.coinsText = this.add.text(width - 160, 35, `Coins: ${this.totalCoins}`, {
+    this.coinsText = this.add.text(width - 160, 30, `Coins: ${this.totalCoins}`, {
       fontSize: '18px',
       color: '#ffbe0b',
       fontStyle: 'bold',
@@ -78,11 +101,11 @@ export class HabitatScene extends Phaser.Scene {
 
     // Mute/Unmute Audio Toggle Button
     const audioBtn = this.add
-      .rectangle(260, 40, 130, 36, 0x334155)
+      .rectangle(260, 35, 120, 32, 0x334155)
       .setInteractive({ useHandCursor: true });
     this.audioToggleText = this.add
-      .text(260, 40, soundEngine.isMuted() ? '🔇 Audio: OFF' : '🔊 Audio: ON', {
-        fontSize: '12px',
+      .text(260, 35, soundEngine.isMuted() ? '🔇 Audio: OFF' : '🔊 Audio: ON', {
+        fontSize: '11px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
@@ -93,41 +116,61 @@ export class HabitatScene extends Phaser.Scene {
       this.audioToggleText.setText(isMuted ? '🔇 Audio: OFF' : '🔊 Audio: ON');
     });
 
+    // Roster Switcher Bar
+    this.createRosterSwitcher(width);
+
     // Pet Sprite & Interactive Zone
-    this.petSprite = this.add.sprite(width / 2 - 120, height / 2 - 20, 'pet_texture').setScale(2.5);
+    const speciesConfig = SPECIES_DATA[this.activeCreature.speciesId] || SPECIES_DATA.guardian_blob;
+    this.petSprite = this.add.sprite(width / 2 - 120, height / 2 - 10, 'pet_texture').setScale(2.5);
+    this.petSprite.setTint(speciesConfig.colorHex);
     this.petSprite.setInteractive({ useHandCursor: true });
     this.petSprite.on('pointerdown', () => this.petCreature());
 
     // Bounce Animation
     this.tweens.add({
       targets: this.petSprite,
-      y: height / 2 - 35,
+      y: height / 2 - 25,
       duration: 800,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
 
+    // Creature Info & Level / EXP Text
+    const nextExp = CreatureEngine.getExpForNextLevel(this.activeCreature.level);
+    this.add
+      .text(
+        width / 2 - 120,
+        height / 2 + 35,
+        `${this.activeCreature.nickname} (${speciesConfig.role.toUpperCase()}) | Lv.${this.activeCreature.level} [${this.activeCreature.currentExp}/${nextExp} EXP]`,
+        {
+          fontSize: '14px',
+          color: '#ffbe0b',
+          fontStyle: 'bold',
+        },
+      )
+      .setOrigin(0.5);
+
     // Care Status Bars
     this.hungerBar = this.add.graphics();
     this.affectionBar = this.add.graphics();
 
-    this.hungerText = this.add.text(width / 2 - 340, height / 2 + 55, '', {
-      fontSize: '15px',
+    this.hungerText = this.add.text(width / 2 - 340, height / 2 + 75, '', {
+      fontSize: '14px',
       color: '#4cc9f0',
       fontStyle: 'bold',
     });
 
-    this.affectionText = this.add.text(width / 2 - 120, height / 2 + 55, '', {
-      fontSize: '15px',
+    this.affectionText = this.add.text(width / 2 - 120, height / 2 + 75, '', {
+      fontSize: '14px',
       color: '#f72585',
       fontStyle: 'bold',
     });
 
     // Care Buff Badge
     this.buffBadgeText = this.add
-      .text(width / 2 - 230, height / 2 + 130, '', {
-        fontSize: '15px',
+      .text(width / 2 - 230, height / 2 + 140, '', {
+        fontSize: '14px',
         color: '#80ed99',
         fontStyle: 'bold',
         backgroundColor: '#0f172a',
@@ -135,23 +178,38 @@ export class HabitatScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Evolution Button Container
+    this.evolveBtnContainer = this.add
+      .container(width / 2 - 120, height / 2 - 80)
+      .setVisible(false);
+    const evolveBg = this.add
+      .rectangle(0, 0, 160, 36, 0xf72585)
+      .setInteractive({ useHandCursor: true });
+    const evolveTxt = this.add
+      .text(0, 0, '⚡ EVOLVE NOW!', { fontSize: '13px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5);
+    this.evolveBtnContainer.add([evolveBg, evolveTxt]);
+
+    evolveBg.on('pointerdown', () => {
+      if (CreatureEngine.evolveCreature(this.activeCreature)) {
+        soundEngine.playVictoryFanfare();
+        this.persistState();
+        this.scene.restart();
+      }
+    });
+
     // Interactive Care Buttons
-    this.createButton(width / 2 - 320, height - 70, 'FEED 🍖', 0x38b000, () => this.feedPet());
-    this.createButton(width / 2 - 160, height - 70, 'PET ❤️', 0x7209b7, () => this.petCreature());
-    this.createButton(width / 2, height - 70, 'DEFENSE ⚔️', 0xf72585, () => this.startDefenseRun());
+    this.createButton(width / 2 - 320, height - 60, 'FEED 🍖', 0x38b000, () => this.feedPet());
+    this.createButton(width / 2 - 160, height - 60, 'PET ❤️', 0x7209b7, () => this.petCreature());
+    this.createButton(width / 2, height - 60, 'DEFENSE ⚔️', 0xf72585, () => this.startDefenseRun());
 
     // Dev Controls Toggle Button
     const devBtn = this.add
-      .rectangle(100, 40, 140, 36, 0x334155)
+      .rectangle(90, 35, 120, 32, 0x334155)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(100, 40, '🛠️ DEV TOOLS', {
-        fontSize: '13px',
-        color: '#cbd5e1',
-        fontStyle: 'bold',
-      })
+      .text(90, 35, '🛠️ DEV TOOLS', { fontSize: '12px', color: '#cbd5e1', fontStyle: 'bold' })
       .setOrigin(0.5);
-
     devBtn.on('pointerdown', () => this.toggleDevControlsModal());
 
     // Containers for Modals
@@ -164,10 +222,39 @@ export class HabitatScene extends Phaser.Scene {
     this.updateCareUI();
     this.renderInventoryList();
 
-    // Check tutorial status explicitly from save
     if (!this.tutorialCompleted) {
       this.showTutorialModal();
     }
+  }
+
+  private createRosterSwitcher(width: number): void {
+    const startX = width / 2 - 180;
+    const y = 70;
+
+    this.ownedCreatures.forEach((creature, idx) => {
+      const btnX = startX + idx * 180;
+      const species = SPECIES_DATA[creature.speciesId] || SPECIES_DATA.guardian_blob;
+      const isActive = creature.instanceId === this.activeCreature.instanceId;
+
+      const bg = this.add
+        .rectangle(btnX, y, 160, 30, isActive ? species.colorHex : 0x334155, 0.9)
+        .setStrokeStyle(2, isActive ? 0xffbe0b : 0x475569)
+        .setInteractive({ useHandCursor: true });
+
+      this.add
+        .text(btnX, y, `${species.name} (Lv.${creature.level})`, {
+          fontSize: '11px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5);
+
+      bg.on('pointerdown', () => {
+        this.activeCreature = creature;
+        this.persistState();
+        this.scene.restart();
+      });
+    });
   }
 
   private showTutorialModal(): void {
@@ -192,10 +279,10 @@ export class HabitatScene extends Phaser.Scene {
       .text(
         width / 2,
         height / 2 - 20,
-        `1. FEED & PET your creature to keep Hunger low & Affection high.\n` +
-          `2. HIGH CARE grants Combat Buffs (+15% Damage, +15% Speed)!\n` +
-          `3. EQUIP collars to boost stats, then start DEFENSE RUN!\n` +
-          `4. Clear 5 enemy waves and draft temporary Traits after each wave!`,
+        `1. SELECT between 3 Creature Roles (Guardian, Spark, Prowler)!\n` +
+          `2. FEED & PET to maintain High Care for Combat Multipliers!\n` +
+          `3. EQUIP collars, clear 5 defense waves, and earn EXP to LEVEL UP!\n` +
+          `4. Reach Level 5 to EVOLVE your creature into Stage 2!`,
         {
           fontSize: '14px',
           color: '#cbd5e1',
@@ -263,35 +350,30 @@ export class HabitatScene extends Phaser.Scene {
         },
       },
       {
-        label: 'MAX CARE (100/100)',
+        label: '+500 EXP (INSTANT LEVEL UP)',
         color: 0x16a34a,
         onClick: () => {
-          this.profile.hunger = 100;
-          this.profile.affection = 100;
+          CreatureEngine.addExpToCreature(this.activeCreature, 500);
           this.persistState();
-          this.updateCareUI();
+          this.scene.restart();
         },
       },
       {
-        label: 'GIVE SPIKED COLLAR',
+        label: 'MAX CARE (100/100)',
         color: 0x9333ea,
         onClick: () => {
-          this.inventory.push('spiked_collar');
+          this.activeCreature.fullness = 100;
+          this.activeCreature.affection = 100;
           this.persistState();
-          this.renderInventoryList();
+          this.updateCareUI();
         },
       },
       {
         label: 'RESET SAVE DATA',
         color: 0xd97706,
         onClick: () => {
-          const fresh = SaveManager.resetSave();
-          this.profile = fresh.creatureProfile;
-          this.inventory = fresh.inventory;
-          this.totalCoins = fresh.totalCoins;
-          this.tutorialCompleted = fresh.tutorialCompleted;
-          this.renderInventoryList();
-          this.updateCareUI();
+          SaveManager.resetSave();
+          this.scene.restart();
         },
       },
     ];
@@ -365,7 +447,8 @@ export class HabitatScene extends Phaser.Scene {
     const panelX = width - 340;
     const startY = height / 2 - 140;
 
-    const equippedItem = EquipmentEngine.getEquippedItem(this.profile);
+    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
+    const equippedItem = EquipmentEngine.getEquippedItem(legacyProfile);
     if (equippedItem) {
       this.equipStatusText.setText(`Equipped: ${equippedItem.name}`);
 
@@ -381,7 +464,8 @@ export class HabitatScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       unequipBtn.on('pointerdown', () => {
-        EquipmentEngine.unequipItem(this.profile, this.inventory);
+        EquipmentEngine.unequipItem(legacyProfile, this.inventory);
+        this.activeCreature.equippedItems.accessory = legacyProfile.equippedItemId;
         this.persistState();
         this.renderInventoryList();
         this.updateCareUI();
@@ -413,22 +497,18 @@ export class HabitatScene extends Phaser.Scene {
       const itemBg = this.add
         .rectangle(panelX, itemY, 270, 65, 0x1e293b)
         .setStrokeStyle(1, 0x475569);
-
       const nameTxt = this.add.text(panelX - 120, itemY - 20, itemConfig.name, {
         fontSize: '14px',
         color: '#f8fafc',
         fontStyle: 'bold',
       });
-
       const descTxt = this.add.text(panelX - 120, itemY + 2, itemConfig.description, {
         fontSize: '11px',
         color: '#94a3b8',
       });
-
       const equipBtn = this.add
         .rectangle(panelX + 90, itemY, 65, 28, 0x3b82f6)
         .setInteractive({ useHandCursor: true });
-
       const btnTxt = this.add
         .text(panelX + 90, itemY, 'EQUIP', {
           fontSize: '11px',
@@ -438,7 +518,8 @@ export class HabitatScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       equipBtn.on('pointerdown', () => {
-        EquipmentEngine.equipItem(this.profile, this.inventory, itemId);
+        EquipmentEngine.equipItem(legacyProfile, this.inventory, itemId);
+        this.activeCreature.equippedItems.accessory = legacyProfile.equippedItemId;
         this.persistState();
         this.renderInventoryList();
         this.updateCareUI();
@@ -450,15 +531,19 @@ export class HabitatScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const deltaSeconds = delta / 1000;
-    PetCareEngine.updateCareDecay(this.profile, deltaSeconds, 0.3);
+    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
+    PetCareEngine.updateCareDecay(legacyProfile, deltaSeconds, 0.3);
+    this.activeCreature.fullness = 100 - legacyProfile.hunger;
     this.updateCareUI();
   }
 
   private feedPet(): void {
-    PetCareEngine.feedPet(this.profile, 25);
+    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
+    PetCareEngine.feedPet(legacyProfile, 25);
+    this.activeCreature.fullness = 100 - legacyProfile.hunger;
     this.persistState();
     soundEngine.playFeedSound();
-    eventBus.emit('PET_FED', { hunger: this.profile.hunger });
+    eventBus.emit('PET_FED', { hunger: legacyProfile.hunger });
 
     this.tweens.add({
       targets: this.petSprite,
@@ -469,15 +554,17 @@ export class HabitatScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
     });
 
-    this.showFloatingText(this.petSprite.x, this.petSprite.y - 40, '🍖 Hunger +25', '#38b000');
+    this.showFloatingText(this.petSprite.x, this.petSprite.y - 40, '🍖 Hunger -25', '#38b000');
     this.updateCareUI();
   }
 
   private petCreature(): void {
-    PetCareEngine.petCreature(this.profile, 10);
+    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
+    PetCareEngine.petCreature(legacyProfile, 10);
+    this.activeCreature.affection = legacyProfile.affection;
     this.persistState();
     soundEngine.playPetSound();
-    eventBus.emit('PET_PETTED', { affection: this.profile.affection });
+    eventBus.emit('PET_PETTED', { affection: legacyProfile.affection });
 
     this.tweens.add({
       targets: this.petSprite,
@@ -511,12 +598,13 @@ export class HabitatScene extends Phaser.Scene {
   }
 
   private updateCareUI(): void {
-    const { hunger, affection } = this.profile;
+    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
+    const { hunger, affection } = legacyProfile;
     const barWidth = 160;
     const barHeight = 14;
     const xLeft = this.scale.width / 2 - 340;
     const xRight = this.scale.width / 2 - 120;
-    const y = this.scale.height / 2 + 80;
+    const y = this.scale.height / 2 + 100;
 
     this.hungerBar.clear();
     this.hungerBar.fillStyle(0x0f172a, 0.8);
@@ -532,8 +620,8 @@ export class HabitatScene extends Phaser.Scene {
     this.affectionBar.fillRect(xRight, y, barWidth * (affection / 100), barHeight);
     this.affectionText.setText(`Affection: ${Math.round(affection)}/100`);
 
-    const careBonus = PetCareEngine.calculateCareBonus(this.profile);
-    const effectiveStats = EquipmentEngine.getEffectiveStats(this.profile);
+    const careBonus = PetCareEngine.calculateCareBonus(legacyProfile);
+    const effectiveStats = EquipmentEngine.getEffectiveStats(legacyProfile);
 
     const finalDamage = Math.round(effectiveStats.attackDamage * careBonus.damageMultiplier);
     const finalSpeed = (effectiveStats.attackSpeed * careBonus.speedMultiplier).toFixed(2);
@@ -543,13 +631,15 @@ export class HabitatScene extends Phaser.Scene {
       `Combat Stats: Atk ${finalDamage} | Spd ${finalSpeed}/s | HP ${finalHp}`,
     );
 
+    this.evolveBtnContainer.setVisible(CreatureEngine.canEvolve(this.activeCreature));
     this.coinsText.setText(`Coins: ${this.totalCoins}`);
   }
 
   private startDefenseRun(): void {
     soundEngine.playAttackSound();
-    const careBonus = PetCareEngine.calculateCareBonus(this.profile);
-    const effectiveStats = EquipmentEngine.getEffectiveStats(this.profile);
+    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
+    const careBonus = PetCareEngine.calculateCareBonus(legacyProfile);
+    const effectiveStats = EquipmentEngine.getEffectiveStats(legacyProfile);
 
     const modifiedStats = {
       ...effectiveStats,

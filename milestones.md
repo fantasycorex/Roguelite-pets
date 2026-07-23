@@ -90,14 +90,16 @@
 - [x] Exit condition: New ability, enemy behavior, or map addable primarily through typed data without modifying `CombatEngine`.
 
 ### Milestone 10 — Creature Identity, Level and Evolution Framework
-- [ ] Separate `CreatureSpeciesConfig` from `OwnedCreature` saved state.
-- [ ] Initial 3 starter creatures with distinct roles:
-  - **Guardian** (High HP, taunt/block, benefits strongly from affection).
-  - **Spark** (Ranged lightning/AoE, lower HP, benefits from full belly).
-  - **Prowler** (Fast interception, crit/attack-speed builds).
-- [ ] EXP level-up thresholds & multi-level run resolution.
-- [ ] Evolution prerequisites and alpha stage 2 evolution per starter.
-- [ ] Save migration from legacy single-profile schema.
+- [x] Separate `CreatureSpeciesConfig` from `OwnedCreature` saved state.
+- [x] Initial 3 starter creatures with distinct roles:
+  - **Guardian** (`Ironback Slime`): High HP, short range, taunts/blocks, benefits strongly from affection.
+  - **Spark** (`Ember Sprite`): Ranged attacks, fire blast, lower HP, benefits from full belly.
+  - **Prowler** (`Shadow Stalker`): Fast interception, critical hits/attack-speed builds.
+- [x] EXP level-up thresholds & multi-level run resolution (`CreatureEngine.addExpToCreature`).
+- [x] Stat growth curves per level.
+- [x] Evolution prerequisites (Level 5+) and Stage 2 evolutions (`Aegis Titan`, `Infernal Drake`, `Void Specter`).
+- [x] Save schema version 3 migration (`ownedCreatures`, `activeCreatureInstanceId`).
+- [x] Exit condition: 3 creatures require noticeably different combat decisions and stat scaling.
 
 ### Milestone 11 — Roguelite Build System 2.0
 - [ ] Expanded trait triggers: `on_hit`, `on_kill`, `on_critical`, `on_special`, `on_tower_damaged`, `periodic`, `status_application`, `ability_modifier`, `conditional_stat`, `tower_support`.

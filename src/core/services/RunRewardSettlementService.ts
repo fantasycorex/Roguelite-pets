@@ -1,5 +1,6 @@
 import { SaveManager } from '../save/SaveManager';
 import { SaveDataSchema } from '../../types/save';
+import { CreatureEngine } from '../creature/CreatureEngine';
 
 export interface RunRewardPayload {
   runId: string;
@@ -22,37 +23,38 @@ export class RunRewardSettlementService {
   }
 
   /**
-   * Settles run rewards exactly once per run ID (idempotent)
+   * Settles run rewards exactly once per run ID (idempotent), resolving EXP level ups
    */
   public settleRunRewards(payload: RunRewardPayload): {
     settled: boolean;
     saveData: SaveDataSchema;
+    levelsGained: number;
   } {
     if (!payload.runId || this.settledRunIds.has(payload.runId)) {
-      return { settled: false, saveData: SaveManager.loadGame() };
+      return { settled: false, saveData: SaveManager.loadGame(), levelsGained: 0 };
     }
 
     this.settledRunIds.add(payload.runId);
 
     const currentSave = SaveManager.loadGame();
     const updatedCoins = currentSave.totalCoins + Math.max(0, payload.coinsEarned);
-    const updatedExp = currentSave.creatureProfile.currentExp + Math.max(0, payload.expEarned);
     const updatedInventory = [...currentSave.inventory];
 
     if (payload.droppedEquipment && payload.droppedEquipment.length > 0) {
       updatedInventory.push(...payload.droppedEquipment);
     }
 
+    // Resolve EXP onto active creature
+    const activeCreature = SaveManager.getActiveCreature(currentSave);
+    const { levelsGained } = CreatureEngine.addExpToCreature(activeCreature, payload.expEarned);
+
     const updatedSave = SaveManager.updateSaveData({
       totalCoins: updatedCoins,
       inventory: updatedInventory,
-      creatureProfile: {
-        ...currentSave.creatureProfile,
-        currentExp: updatedExp,
-      },
+      ownedCreatures: currentSave.ownedCreatures,
     });
 
-    return { settled: true, saveData: updatedSave };
+    return { settled: true, saveData: updatedSave, levelsGained };
   }
 
   public isRunSettled(runId: string): boolean {

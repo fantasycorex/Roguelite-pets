@@ -1,13 +1,16 @@
 import { SaveDataSchema } from '../../types/save';
-import { DEFAULT_CREATURE_PROFILE } from '../../data/creatures.data';
+import { CreatureEngine } from '../creature/CreatureEngine';
+import { OwnedCreature } from '../../types/creature';
 
-export const CURRENT_SAVE_SCHEMA_VERSION = 2;
-export const SAVE_STORAGE_KEY = 'ROGUELITE_PETS_SAVE_DATA_V2';
+export const CURRENT_SAVE_SCHEMA_VERSION = 3;
+export const SAVE_STORAGE_KEY = 'ROGUELITE_PETS_SAVE_DATA_V3';
+export const LEGACY_SAVE_STORAGE_KEY_V2 = 'ROGUELITE_PETS_SAVE_DATA_V2';
 export const LEGACY_SAVE_STORAGE_KEY_V1 = 'ROGUELITE_PETS_SAVE_DATA_V1';
 
 export const DEFAULT_SAVE_DATA: SaveDataSchema = {
   version: CURRENT_SAVE_SCHEMA_VERSION,
-  creatureProfile: { ...DEFAULT_CREATURE_PROFILE },
+  activeCreatureInstanceId: 'c_guardian_1',
+  ownedCreatures: CreatureEngine.createDefaultOwnedCreatures(),
   inventory: ['wooden_collar'],
   totalCoins: 50,
   unlockedTraits: ['sharp_claws', 'swift_fury'],
@@ -38,9 +41,7 @@ export class SaveManager {
     const updated: SaveDataSchema = {
       ...current,
       ...updates,
-      creatureProfile: updates.creatureProfile
-        ? { ...current.creatureProfile, ...updates.creatureProfile }
-        : current.creatureProfile,
+      ownedCreatures: updates.ownedCreatures || current.ownedCreatures,
       version: CURRENT_SAVE_SCHEMA_VERSION,
     };
     this.saveGame(updated);
@@ -54,12 +55,15 @@ export class SaveManager {
     try {
       let json = localStorage.getItem(SAVE_STORAGE_KEY);
 
+      // Fallback check for legacy V2 save key
+      if (!json) {
+        const v2Json = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY_V2);
+        if (v2Json) json = v2Json;
+      }
       // Fallback check for legacy V1 save key
       if (!json) {
-        const legacyJson = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY_V1);
-        if (legacyJson) {
-          json = legacyJson;
-        }
+        const v1Json = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY_V1);
+        if (v1Json) json = v1Json;
       }
 
       if (!json) return this.createDefaultSave();
@@ -81,11 +85,21 @@ export class SaveManager {
   }
 
   /**
+   * Gets active owned creature object from save
+   */
+  public static getActiveCreature(saveData?: SaveDataSchema): OwnedCreature {
+    const save = saveData || this.loadGame();
+    const found = save.ownedCreatures.find((c) => c.instanceId === save.activeCreatureInstanceId);
+    return found || save.ownedCreatures[0] || DEFAULT_SAVE_DATA.ownedCreatures[0];
+  }
+
+  /**
    * Resets save data back to default initial state
    */
   public static resetSave(): SaveDataSchema {
     try {
       localStorage.removeItem(SAVE_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY_V2);
       localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY_V1);
     } catch (e) {
       console.error('Failed to clear save data:', e);
@@ -100,11 +114,24 @@ export class SaveManager {
   }
 
   public static migrateSaveData(oldData: Partial<SaveDataSchema>): SaveDataSchema {
+    const defaultCreatures = CreatureEngine.createDefaultOwnedCreatures();
+
+    // Migrate legacy profile fields if present
+    if (oldData.creatureProfile) {
+      const p = oldData.creatureProfile;
+      defaultCreatures[0].level = Math.max(1, p.level || 1);
+      defaultCreatures[0].currentExp = p.currentExp || 0;
+      defaultCreatures[0].affection = p.affection || 50;
+      defaultCreatures[0].fullness = 100 - (p.hunger || 20);
+    }
+
     const migrated: SaveDataSchema = {
       version: CURRENT_SAVE_SCHEMA_VERSION,
-      creatureProfile: oldData.creatureProfile
-        ? { ...DEFAULT_CREATURE_PROFILE, ...oldData.creatureProfile }
-        : { ...DEFAULT_CREATURE_PROFILE },
+      activeCreatureInstanceId: oldData.activeCreatureInstanceId || 'c_guardian_1',
+      ownedCreatures:
+        Array.isArray(oldData.ownedCreatures) && oldData.ownedCreatures.length > 0
+          ? oldData.ownedCreatures
+          : defaultCreatures,
       inventory: Array.isArray(oldData.inventory) ? oldData.inventory : ['wooden_collar'],
       totalCoins: typeof oldData.totalCoins === 'number' ? oldData.totalCoins : 50,
       unlockedTraits:
@@ -119,6 +146,10 @@ export class SaveManager {
   }
 
   private static ensureCompleteSchema(data: SaveDataSchema): SaveDataSchema {
+    if (!Array.isArray(data.ownedCreatures) || data.ownedCreatures.length === 0) {
+      data.ownedCreatures = CreatureEngine.createDefaultOwnedCreatures();
+      data.activeCreatureInstanceId = 'c_guardian_1';
+    }
     if (!Array.isArray(data.unlockedTraits)) {
       data.unlockedTraits = ['sharp_claws', 'swift_fury'];
     }

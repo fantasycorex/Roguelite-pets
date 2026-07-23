@@ -114,7 +114,7 @@ describe('Milestone 8 — Vertical Slice Hardening Tests', () => {
     expect(updated.tutorialCompleted).toBe(false);
   });
 
-  it('SaveManager migrates V1 save schema to V2 seamlessly', () => {
+  it('SaveManager migrates V1 save schema to current version seamlessly', () => {
     const v1Data = {
       version: 1,
       creatureProfile: { ...DEFAULT_CREATURE_PROFILE },
@@ -124,7 +124,7 @@ describe('Milestone 8 — Vertical Slice Hardening Tests', () => {
     };
 
     const migrated = SaveManager.migrateSaveData(v1Data);
-    expect(migrated.version).toBe(2);
+    expect(migrated.version).toBe(CURRENT_SAVE_SCHEMA_VERSION);
     expect(migrated.totalCoins).toBe(75);
     expect(migrated.unlockedTraits).toEqual(['sharp_claws']);
     expect(migrated.tutorialCompleted).toBe(false);
