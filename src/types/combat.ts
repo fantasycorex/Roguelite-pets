@@ -31,7 +31,8 @@ export interface AbilityConfig {
   statusEffects?: StatusEffectConfig[];
 }
 
-export type EnemyBehaviourStyle = 'rush_tower' | 'fight_creature' | 'ranged_path' | 'standard';
+export type EnemyBehaviourStyle =
+  'rush_tower' | 'fight_creature' | 'ranged_path' | 'standard' | 'boss_sovereign';
 
 export interface EnemyBehaviourConfig {
   style: EnemyBehaviourStyle;
@@ -45,7 +46,9 @@ export interface EnemyBehaviourConfig {
 export interface MapConfig {
   id: string;
   name: string;
+  description: string;
   waypoints: { x: number; y: number }[];
+  secondaryWaypoints?: { x: number; y: number }[];
   towerPosition: { x: number; y: number };
   patrolRadius: number;
 }

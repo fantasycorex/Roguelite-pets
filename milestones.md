@@ -111,10 +111,11 @@
 - [x] Exit condition: At least 4 recognisably different builds viable across repeated runs.
 
 ### Milestone 12 — Maps, Enemies and Boss Encounter
-- [ ] Map 1 — Heartwood Clearing (Introductory layout).
-- [ ] Map 2 — Moonlit Crossing (Dual merging paths, multi-threats).
-- [ ] Expanded enemy roster: Gloom Beetle, Shadow Runner, Void Golem, Spitter, Wisp, Saboteur.
-- [ ] Boss encounter with telegraphs, 2 phases, minion spawns, vulnerability windows.
+- [x] Map 1 — Heartwood Clearing (Single winding path).
+- [x] Map 2 — Moonlit Crossing (Dual merging spawn tracks).
+- [x] Expanded enemy roster (6 types): Gloom Beetle, Shadow Runner, Void Golem, Gloom Spitter (ranged), Shadow Wisp (slow disruptor), Abyssal Saboteur (stealth tower rusher).
+- [x] Boss encounter: Two-Phase `Void Sovereign` boss with phase 2 enrage (+50% speed), minion spawns, and AoE telegraph burst warning circles.
+- [x] Map Selection modal in HabitatScene before launching defense run.
 
 ### Milestone 13 — Habitat, Equipment and Economy 2.0
 - [ ] Food inventory & 3 food types with distinct effects + shop.

@@ -5,17 +5,21 @@ import { eventBus } from '../core/events/EventBus';
 import { CombatEngine } from '../core/combat/CombatEngine';
 import { BattleRunState, ActiveEnemy } from '../core/state/BattleRunState';
 import { DEFAULT_CREATURE_STATS } from '../data/creatures.data';
-import { WAVES_DATA } from '../data/waves.data';
+import { WAVES_DATA_MAP1, WAVES_DATA_MAP2 } from '../data/waves.data';
 import { TRAITS_DATA } from '../data/traits.data';
 import { CreatureStats } from '../types/creature';
 import { EquipmentConfig } from '../types/equipment';
+import { TraitConfig } from '../types/trait';
 import { runRewardSettlementService } from '../core/services/RunRewardSettlementService';
 import { soundEngine } from '../core/audio/SoundEngine';
+import { WaveConfig } from '../types/wave';
 
 export class DefenseScene extends Phaser.Scene {
   private combatEngine!: CombatEngine;
   private runState!: BattleRunState;
   private petStats: CreatureStats = DEFAULT_CREATURE_STATS;
+  private selectedMapId: string = 'heartwood_clearing';
+  private waveSet: WaveConfig[] = WAVES_DATA_MAP1;
 
   private enemySprites: Map<
     string,
@@ -38,12 +42,14 @@ export class DefenseScene extends Phaser.Scene {
     super({ key: 'DefenseScene' });
   }
 
-  init(data?: { petStats?: CreatureStats }): void {
+  init(data?: { petStats?: CreatureStats; mapId?: string }): void {
     if (data && data.petStats) {
       this.petStats = { ...data.petStats };
     } else {
       this.petStats = { ...DEFAULT_CREATURE_STATS };
     }
+    this.selectedMapId = data?.mapId || 'heartwood_clearing';
+    this.waveSet = this.selectedMapId === 'moonlit_crossing' ? WAVES_DATA_MAP2 : WAVES_DATA_MAP1;
   }
 
   create(): void {
@@ -51,15 +57,16 @@ export class DefenseScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // Run State & Map Config
-    this.runState = new BattleRunState(this.petStats);
-    this.runState.totalWaves = WAVES_DATA.length;
+    this.runState = new BattleRunState(this.petStats, this.selectedMapId);
+    this.runState.totalWaves = this.waveSet.length;
     const waypoints = this.runState.mapConfig.waypoints;
+    const secondaryWaypoints = this.runState.mapConfig.secondaryWaypoints;
     const towerPos = this.runState.mapConfig.towerPosition;
 
     // Map Background
     this.add.rectangle(width / 2, height / 2, width, height, 0x0f172a);
 
-    // Waypoints & Path Graphics
+    // Waypoints & Path Graphics (Primary + Secondary)
     this.pathGraphics = this.add.graphics();
     this.pathGraphics.lineStyle(12, 0x334155, 0.8);
     this.pathGraphics.beginPath();
@@ -68,6 +75,16 @@ export class DefenseScene extends Phaser.Scene {
       this.pathGraphics.lineTo(waypoints[i].x, waypoints[i].y);
     }
     this.pathGraphics.strokePath();
+
+    if (secondaryWaypoints && secondaryWaypoints.length > 0) {
+      this.pathGraphics.lineStyle(10, 0x475569, 0.7);
+      this.pathGraphics.beginPath();
+      this.pathGraphics.moveTo(secondaryWaypoints[0].x, secondaryWaypoints[0].y);
+      for (let i = 1; i < secondaryWaypoints.length; i++) {
+        this.pathGraphics.lineTo(secondaryWaypoints[i].x, secondaryWaypoints[i].y);
+      }
+      this.pathGraphics.strokePath();
+    }
 
     // Central Tower & Patrol Circle
     this.add.sprite(towerPos.x, towerPos.y, 'tower_texture');
@@ -82,11 +99,16 @@ export class DefenseScene extends Phaser.Scene {
 
     // UI Header with dynamic wave & seed
     this.waveText = this.add
-      .text(width / 2, 25, `WAVE 1 / ${WAVES_DATA.length}  (Seed: #${this.runState.runSeed})`, {
-        fontSize: '20px',
-        color: '#f72585',
-        fontStyle: 'bold',
-      })
+      .text(
+        width / 2,
+        25,
+        `${this.runState.mapConfig.name.toUpperCase()} • WAVE 1 / ${this.waveSet.length}  (#${this.runState.runSeed})`,
+        {
+          fontSize: '18px',
+          color: '#f72585',
+          fontStyle: 'bold',
+        },
+      )
       .setOrigin(0.5);
 
     this.coinsText = this.add.text(width - 160, 25, 'Coins: 0', {
@@ -118,7 +140,7 @@ export class DefenseScene extends Phaser.Scene {
 
     this.bannerText = this.add
       .text(width / 2, height / 2 - 140, '', {
-        fontSize: '32px',
+        fontSize: '30px',
         color: '#ffbe0b',
         fontStyle: 'bold',
       })
@@ -203,7 +225,7 @@ export class DefenseScene extends Phaser.Scene {
     this.setupEventListeners();
 
     // Start Wave 1
-    this.combatEngine.startWave(WAVES_DATA[0]);
+    this.combatEngine.startWave(this.waveSet[0]);
   }
 
   private setupEventListeners(): void {
@@ -222,6 +244,8 @@ export class DefenseScene extends Phaser.Scene {
     eventBus.on('WAVE_STARTED', this.onWaveStarted);
     eventBus.on('WAVE_COMPLETED', this.onWaveCompleted);
     eventBus.on('TOWER_DESTROYED', this.onTowerDestroyed);
+    eventBus.on('BOSS_PHASE_CHANGED', this.onBossPhaseChanged);
+    eventBus.on('BOSS_TELEGRAPH', this.onBossTelegraph);
   }
 
   private cleanupEvents = (): void => {
@@ -238,6 +262,8 @@ export class DefenseScene extends Phaser.Scene {
     eventBus.off('WAVE_STARTED', this.onWaveStarted);
     eventBus.off('WAVE_COMPLETED', this.onWaveCompleted);
     eventBus.off('TOWER_DESTROYED', this.onTowerDestroyed);
+    eventBus.off('BOSS_PHASE_CHANGED', this.onBossPhaseChanged);
+    eventBus.off('BOSS_TELEGRAPH', this.onBossTelegraph);
   };
 
   private onEnemySpawned = (data: unknown): void => {
@@ -248,10 +274,43 @@ export class DefenseScene extends Phaser.Scene {
       enemy.y,
       this.textures.exists(spriteKey) ? spriteKey : 'enemy_basic',
     );
+    if (enemy.config.isBoss) {
+      sprite.setScale(2.2);
+    }
     const hpBar = this.add.graphics();
 
     this.enemySprites.set(enemy.instanceId, { sprite, hpBar });
     this.updateHpBar(enemy.instanceId, enemy.currentHp, enemy.maxHp);
+  };
+
+  private onBossPhaseChanged = (data: unknown): void => {
+    const { name } = data as { name: string; phase: number };
+    soundEngine.playHitSound();
+    this.cameras.main.shake(300, 0.015);
+    this.bannerText.setText(`⚡ ${name.toUpperCase()} ENRAGED! (PHASE 2)`);
+    this.bannerText.setColor('#f72585');
+    this.time.delayedCall(2000, () => this.bannerText.setText(''));
+  };
+
+  private onBossTelegraph = (data: unknown): void => {
+    const { x, y, radius, warningTimeMs } = data as {
+      x: number;
+      y: number;
+      radius: number;
+      warningTimeMs: number;
+    };
+    soundEngine.playHitSound();
+
+    const ring = this.add.graphics();
+    ring.lineStyle(3, 0xff0054, 0.9);
+    ring.strokeCircle(x, y, radius);
+
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      duration: warningTimeMs,
+      onComplete: () => ring.destroy(),
+    });
   };
 
   private onEnemyDamaged = (data: unknown): void => {
@@ -388,7 +447,7 @@ export class DefenseScene extends Phaser.Scene {
   private onWaveStarted = (data: unknown): void => {
     const { waveIndex } = data as { waveIndex: number };
     this.waveText.setText(
-      `WAVE ${waveIndex} / ${WAVES_DATA.length}  (Seed: #${this.runState.runSeed})`,
+      `${this.runState.mapConfig.name.toUpperCase()} • WAVE ${waveIndex} / ${this.waveSet.length}  (#${this.runState.runSeed})`,
     );
     this.bannerText.setText(`WAVE ${waveIndex} START!`);
     this.time.delayedCall(1200, () => this.bannerText.setText(''));
@@ -398,7 +457,7 @@ export class DefenseScene extends Phaser.Scene {
     const { waveIndex } = data as { waveIndex: number };
     this.bannerText.setText(`WAVE ${waveIndex} COMPLETED!`);
 
-    if (waveIndex < WAVES_DATA.length) {
+    if (waveIndex < this.waveSet.length) {
       this.time.delayedCall(1500, () => {
         this.bannerText.setText('');
         this.openTraitSelectionModal();
@@ -519,7 +578,7 @@ export class DefenseScene extends Phaser.Scene {
         phaseManager.setPhase(GamePhase.DEFENSE);
 
         const nextWaveIndex = this.runState.currentWave;
-        this.combatEngine.startWave(WAVES_DATA[nextWaveIndex]);
+        this.combatEngine.startWave(this.waveSet[nextWaveIndex]);
       };
 
       cardBg.on('pointerdown', onSelect);
@@ -580,7 +639,8 @@ export class DefenseScene extends Phaser.Scene {
       .text(
         width / 2,
         height / 2 - 20,
-        `Waves Cleared: ${this.runState.currentWave} / ${WAVES_DATA.length}\n\n` +
+        `Map: ${this.runState.mapConfig.name}\n` +
+          `Waves Cleared: ${this.runState.currentWave} / ${this.waveSet.length}\n\n` +
           `Coins Earned: +${this.runState.coinsCollected}g\n` +
           `EXP Earned: +${this.runState.expEarned} exp\n` +
           `Equipment Looted: ${this.runState.droppedEquipment.length} items`,

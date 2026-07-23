@@ -7,6 +7,7 @@ import { OwnedCreature, PermanentCreatureProfile } from '../types/creature';
 import { EquipmentEngine } from '../core/equipment/EquipmentEngine';
 import { EQUIPMENT_DATA } from '../data/equipment.data';
 import { SPECIES_DATA } from '../data/species.data';
+import { MAPS_DATA } from '../data/maps.data';
 import { SaveManager } from '../core/save/SaveManager';
 import { CreatureEngine } from '../core/creature/CreatureEngine';
 import { soundEngine } from '../core/audio/SoundEngine';
@@ -17,6 +18,7 @@ export class HabitatScene extends Phaser.Scene {
   private inventory: string[] = [];
   private totalCoins: number = 0;
   private tutorialCompleted: boolean = false;
+  private selectedMapId: string = 'heartwood_clearing';
 
   private hungerBar!: Phaser.GameObjects.Graphics;
   private affectionBar!: Phaser.GameObjects.Graphics;
@@ -30,6 +32,7 @@ export class HabitatScene extends Phaser.Scene {
   private inventoryContainer!: Phaser.GameObjects.Container;
   private devModalContainer!: Phaser.GameObjects.Container;
   private tutorialContainer!: Phaser.GameObjects.Container;
+  private mapSelectContainer!: Phaser.GameObjects.Container;
   private evolveBtnContainer!: Phaser.GameObjects.Container;
 
   constructor() {
@@ -201,7 +204,9 @@ export class HabitatScene extends Phaser.Scene {
     // Interactive Care Buttons
     this.createButton(width / 2 - 320, height - 60, 'FEED 🍖', 0x38b000, () => this.feedPet());
     this.createButton(width / 2 - 160, height - 60, 'PET ❤️', 0x7209b7, () => this.petCreature());
-    this.createButton(width / 2, height - 60, 'DEFENSE ⚔️', 0xf72585, () => this.startDefenseRun());
+    this.createButton(width / 2, height - 60, 'DEFENSE ⚔️', 0xf72585, () =>
+      this.openMapSelectionModal(),
+    );
 
     // Dev Controls Toggle Button
     const devBtn = this.add
@@ -215,6 +220,7 @@ export class HabitatScene extends Phaser.Scene {
     // Containers for Modals
     this.devModalContainer = this.add.container(0, 0).setDepth(300).setVisible(false);
     this.tutorialContainer = this.add.container(0, 0).setDepth(400).setVisible(false);
+    this.mapSelectContainer = this.add.container(0, 0).setDepth(500).setVisible(false);
 
     // Setup Equipment Panel
     this.setupEquipmentPanel(width, height);
@@ -255,6 +261,86 @@ export class HabitatScene extends Phaser.Scene {
         this.scene.restart();
       });
     });
+  }
+
+  private openMapSelectionModal(): void {
+    const { width, height } = this.scale;
+    this.mapSelectContainer.removeAll(true);
+    this.mapSelectContainer.setVisible(true);
+
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
+    const box = this.add
+      .rectangle(width / 2, height / 2, 520, 360, 0x1e293b)
+      .setStrokeStyle(3, 0x38b000);
+
+    const title = this.add
+      .text(width / 2, height / 2 - 130, 'SELECT BATTLE MAP', {
+        fontSize: '24px',
+        color: '#ffbe0b',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    const maps = [
+      {
+        id: 'heartwood_clearing',
+        name: MAPS_DATA.heartwood_clearing.name,
+        desc: 'Single winding lane (Standard Enemies)',
+        color: 0x0284c7,
+      },
+      {
+        id: 'moonlit_crossing',
+        name: MAPS_DATA.moonlit_crossing.name,
+        desc: 'Dual merging tracks + 2-Phase Boss Void Sovereign!',
+        color: 0x9333ea,
+      },
+    ];
+
+    maps.forEach((m, idx) => {
+      const cardY = height / 2 - 40 + idx * 95;
+      const isSelected = this.selectedMapId === m.id;
+
+      const cardBg = this.add
+        .rectangle(width / 2, cardY, 440, 75, isSelected ? m.color : 0x334155)
+        .setStrokeStyle(2, isSelected ? 0xffbe0b : 0x475569)
+        .setInteractive({ useHandCursor: true });
+
+      const nameTxt = this.add.text(width / 2 - 190, cardY - 18, m.name, {
+        fontSize: '18px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      });
+
+      const descTxt = this.add.text(width / 2 - 190, cardY + 8, m.desc, {
+        fontSize: '12px',
+        color: '#cbd5e1',
+      });
+
+      cardBg.on('pointerdown', () => {
+        this.selectedMapId = m.id;
+        this.openMapSelectionModal();
+      });
+
+      this.mapSelectContainer.add([cardBg, nameTxt, descTxt]);
+    });
+
+    const startBtn = this.add
+      .rectangle(width / 2, height / 2 + 130, 200, 42, 0xf72585)
+      .setInteractive({ useHandCursor: true });
+    const startTxt = this.add
+      .text(width / 2, height / 2 + 130, 'START DEFENSE RUN ⚔️', {
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    startBtn.on('pointerdown', () => {
+      this.mapSelectContainer.setVisible(false);
+      this.startDefenseRun();
+    });
+
+    this.mapSelectContainer.add([overlay, box, title, startBtn, startTxt]);
   }
 
   private showTutorialModal(): void {
@@ -648,7 +734,10 @@ export class HabitatScene extends Phaser.Scene {
       maxHp: effectiveStats.maxHp * careBonus.hpMultiplier,
     };
 
-    this.scene.start('DefenseScene', { petStats: modifiedStats });
+    this.scene.start('DefenseScene', {
+      petStats: modifiedStats,
+      mapId: this.selectedMapId,
+    });
   }
 
   private createButton(

@@ -10,7 +10,12 @@ import { TraitConfig } from '../../types/trait';
 import { TRAITS_DATA } from '../../data/traits.data';
 import { LootEngine } from '../loot/LootEngine';
 import { SeededRandom } from '../utils/SeededRandom';
-import { StatusEffectConfig, ActiveStatusEffect, DamageEvent } from '../../types/combat';
+import {
+  StatusEffectConfig,
+  ActiveStatusEffect,
+  DamageEvent,
+  StatusEffectType,
+} from '../../types/combat';
 
 export class CombatEngine {
   private pathEngine: PathEngine;
@@ -22,12 +27,13 @@ export class CombatEngine {
   private waveElapsedTimeMs: number = 0;
   private isWaveActive: boolean = false;
   private instanceCounter: number = 0;
+  private trackToggle: number = 0;
 
   private patrolRadius: number = 80;
   private towerCenter: Point;
 
   constructor(pathWaypoints: Point[], towerCenter: Point, runState: BattleRunState) {
-    this.pathEngine = new PathEngine(pathWaypoints);
+    this.pathEngine = new PathEngine(pathWaypoints, runState.mapConfig.secondaryWaypoints);
     this.towerCenter = towerCenter;
     this.runState = runState;
     this.patrolRadius = runState.mapConfig.patrolRadius || 80;
@@ -140,13 +146,20 @@ export class CombatEngine {
     }
   }
 
-  private spawnEnemy(enemyTypeId: string): void {
+  private spawnEnemy(enemyTypeId: string, overrideTrack?: number): void {
     const config = ENEMIES_DATA[enemyTypeId];
     if (!config) return;
 
     this.instanceCounter++;
     const instanceId = `enemy_${this.instanceCounter}`;
-    const startPos = this.pathEngine.getPositionAlongPath(0);
+    const trackIndex =
+      overrideTrack !== undefined
+        ? overrideTrack
+        : this.runState.mapConfig.secondaryWaypoints
+          ? this.trackToggle++ % 2
+          : 0;
+
+    const startPos = this.pathEngine.getPositionAlongPath(0, trackIndex);
 
     const enemy: ActiveEnemy = {
       instanceId,
@@ -158,6 +171,10 @@ export class CombatEngine {
       y: startPos.y,
       state: 'ALIVE',
       rewardGranted: false,
+      trackIndex,
+      bossPhase: config.isBoss ? 1 : undefined,
+      bossEnraged: false,
+      attackTimer: 0,
     };
 
     this.runState.activeEnemies.set(instanceId, enemy);
@@ -195,18 +212,55 @@ export class CombatEngine {
         continue;
       }
 
+      // Check Boss Phase 2 Transition (50% HP threshold)
+      if (enemy.config.isBoss && enemy.bossPhase === 1 && enemy.currentHp <= enemy.maxHp * 0.5) {
+        this.triggerBossPhase2(enemy);
+      }
+
       if (this.hasStatusEffect(enemy.instanceId, 'stun')) {
         continue;
       }
 
       let effectiveSpeed = enemy.config.moveSpeed;
+      if (enemy.bossEnraged) {
+        effectiveSpeed *= 1.5; // +50% move speed in phase 2 enrage
+      }
       if (this.hasStatusEffect(enemy.instanceId, 'slow')) {
         effectiveSpeed *= 0.5;
       }
 
       const behaviour = enemy.config.behaviour;
+      const distToTower = Math.hypot(enemy.x - this.towerCenter.x, enemy.y - this.towerCenter.y);
       const distToPet = Math.hypot(enemy.x - this.runState.petX, enemy.y - this.runState.petY);
 
+      // Handle Ranged Enemy behavior ('ranged_path')
+      if (
+        behaviour?.style === 'ranged_path' &&
+        (distToTower <= behaviour.attackRange || distToPet <= behaviour.attackRange)
+      ) {
+        enemy.attackTimer = (enemy.attackTimer || 0) + deltaSeconds;
+        if (enemy.attackTimer >= 1 / behaviour.attackSpeed) {
+          enemy.attackTimer = 0;
+          if (behaviour.targetPriority === 'creature' && !this.runState.isCreatureDowned) {
+            this.damageCreature(
+              enemy.instanceId,
+              behaviour.attackDamage,
+              behaviour.statusEffectsOnHit,
+            );
+          } else {
+            this.runState.towerHp = Math.max(0, this.runState.towerHp - behaviour.attackDamage);
+            this.triggerOnTowerDamaged(behaviour.attackDamage);
+            eventBus.emit('TOWER_DAMAGED', {
+              currentHp: this.runState.towerHp,
+              maxHp: this.runState.maxTowerHp,
+              damage: behaviour.attackDamage,
+            });
+          }
+        }
+        continue; // Pauses path progression while attacking from range
+      }
+
+      // Handle Tank Creature Fighter behavior ('fight_creature')
       if (
         behaviour?.style === 'fight_creature' &&
         !this.runState.isCreatureDowned &&
@@ -221,7 +275,10 @@ export class CombatEngine {
       } else {
         enemy.isFightingCreature = false;
         enemy.distanceCovered += effectiveSpeed * deltaSeconds;
-        const pos = this.pathEngine.getPositionAlongPath(enemy.distanceCovered);
+        const pos = this.pathEngine.getPositionAlongPath(
+          enemy.distanceCovered,
+          enemy.trackIndex || 0,
+        );
 
         enemy.x = pos.x;
         enemy.y = pos.y;
@@ -263,6 +320,41 @@ export class CombatEngine {
       if (e) e.state = 'REMOVED';
       this.runState.activeEnemies.delete(id);
       this.runState.activeStatusEffects.delete(id);
+    }
+  }
+
+  private triggerBossPhase2(boss: ActiveEnemy): void {
+    boss.bossPhase = 2;
+    boss.bossEnraged = true;
+
+    // Clear negative status effects on transition
+    this.runState.activeStatusEffects.delete(boss.instanceId);
+
+    // Spawn Boss Minion reinforcement wave
+    this.spawnEnemy('spitter', 0);
+    this.spawnEnemy('basic', 1);
+
+    // Emit Boss Phase 2 transition event
+    eventBus.emit('BOSS_PHASE_CHANGED', {
+      instanceId: boss.instanceId,
+      name: boss.config.name,
+      phase: 2,
+    });
+
+    // Perform Boss Telegraph AoE Burst
+    const burstRadius = 160;
+    const burstDamage = 30;
+
+    eventBus.emit('BOSS_TELEGRAPH', {
+      x: boss.x,
+      y: boss.y,
+      radius: burstRadius,
+      warningTimeMs: 600,
+    });
+
+    const distToPet = Math.hypot(boss.x - this.runState.petX, boss.y - this.runState.petY);
+    if (distToPet <= burstRadius) {
+      this.damageCreature(boss.instanceId, burstDamage);
     }
   }
 

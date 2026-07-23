@@ -17,6 +17,10 @@ export interface ActiveEnemy {
   state: EnemyLifecycleState;
   rewardGranted: boolean;
   isFightingCreature?: boolean;
+  trackIndex?: number; // 0 = primary waypoints, 1 = secondary waypoints
+  bossPhase?: 1 | 2;
+  bossEnraged?: boolean;
+  attackTimer?: number;
 }
 
 export interface ActiveProjectile {
@@ -33,6 +37,7 @@ export interface ActiveProjectile {
 
 export class BattleRunState {
   public runId: string;
+  public selectedMapId: string = 'heartwood_clearing';
   public currentWave: number = 1;
   public totalWaves: number = 5;
 
@@ -71,10 +76,12 @@ export class BattleRunState {
   public timeScale: number = 1.0;
   public isPaused: boolean = false;
 
-  constructor(petStats: CreatureStats) {
+  constructor(petStats: CreatureStats, mapId: string = 'heartwood_clearing') {
     this.petStats = { ...petStats };
     this.creatureMaxHp = petStats.maxHp;
     this.creatureCurrentHp = petStats.maxHp;
+    this.selectedMapId = mapId;
+    this.mapConfig = MAPS_DATA[mapId] || MAPS_DATA.heartwood_clearing;
     this.runSeed = Math.floor(Math.random() * 1000000);
     this.runId = `run_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
   }

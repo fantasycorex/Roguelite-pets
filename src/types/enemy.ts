@@ -10,4 +10,5 @@ export interface EnemyConfig {
   expReward: number;
   colorHex: number;
   behaviour?: EnemyBehaviourConfig;
+  isBoss?: boolean;
 }
