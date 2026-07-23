@@ -29,6 +29,7 @@ export class HabitatScene extends Phaser.Scene {
   private selectedMapId: string = 'heartwood_clearing';
   private activeNextRunBuff?: { type: FoodBuffType; multiplier: number };
   private currentPetMood: PetMood = 'Happy';
+  private inventoryPage: number = 0;
 
   private hungerBar!: Phaser.GameObjects.Graphics;
   private affectionBar!: Phaser.GameObjects.Graphics;
@@ -37,7 +38,6 @@ export class HabitatScene extends Phaser.Scene {
   private buffBadgeText!: Phaser.GameObjects.Text;
   private moodText!: Phaser.GameObjects.Text;
   private runBuffText!: Phaser.GameObjects.Text;
-  private equipStatusText!: Phaser.GameObjects.Text;
   private coinsText!: Phaser.GameObjects.Text;
   private audioToggleText!: Phaser.GameObjects.Text;
   private petSprite!: Phaser.GameObjects.Sprite;
@@ -83,7 +83,6 @@ export class HabitatScene extends Phaser.Scene {
     });
   }
 
-  // Convert OwnedCreature to legacy profile payload for care engine compatibility
   private getProfileFromOwned(c: OwnedCreature): PermanentCreatureProfile {
     const effectiveStats = CreatureEngine.getEffectiveStats(c);
     return {
@@ -307,53 +306,78 @@ export class HabitatScene extends Phaser.Scene {
     });
   }
 
+  // PET FOOD SHOP MODAL (Fixed Z-Ordering & Clean Cards Layout)
   private openShopModal(): void {
     const { width, height } = this.scale;
     this.shopModalContainer.removeAll(true);
     this.shopModalContainer.setVisible(true);
 
+    // 1. Add Overlay, Modal Box and Header Title FIRST (Fixes layer coverage bug)
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
     const box = this.add
-      .rectangle(width / 2, height / 2, 540, 380, 0x1e293b)
+      .rectangle(width / 2, height / 2, 540, 420, 0x1e293b)
       .setStrokeStyle(3, 0x0284c7);
 
     const title = this.add
-      .text(width / 2, height / 2 - 150, 'PET FOOD SHOP 🛒', {
+      .text(width / 2, height / 2 - 170, 'PET FOOD SHOP 🛒', {
         fontSize: '24px',
         color: '#ffbe0b',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
+    const coinsDisplay = this.add
+      .text(width / 2, height / 2 - 142, `Your Coins: ${this.totalCoins}g`, {
+        fontSize: '14px',
+        color: '#80ed99',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    this.shopModalContainer.add([overlay, box, title, coinsDisplay]);
+
+    // 2. Render Food Items Cards
     const shopItems = Object.values(FOOD_DATA);
     shopItems.forEach((food, idx) => {
-      const cardY = height / 2 - 70 + idx * 85;
+      const cardY = height / 2 - 90 + idx * 95;
 
       const bg = this.add
-        .rectangle(width / 2, cardY, 480, 75, 0x0f172a)
-        .setStrokeStyle(1, 0x334155);
+        .rectangle(width / 2, cardY, 480, 80, 0x0f172a)
+        .setStrokeStyle(1.5, 0x334155);
 
-      const nameTxt = this.add.text(width / 2 - 220, cardY - 20, food.name, {
-        fontSize: '16px',
+      const foodEmoji =
+        food.id === 'basic_kibble' ? '🍖' : food.id === 'gourmet_treat' ? '🧁' : '🫐';
+      const nameTxt = this.add.text(width / 2 - 225, cardY - 26, `${foodEmoji} ${food.name}`, {
+        fontSize: '17px',
         color: '#ffffff',
         fontStyle: 'bold',
       });
 
-      const descTxt = this.add.text(width / 2 - 220, cardY + 4, food.description, {
+      const descTxt = this.add.text(width / 2 - 225, cardY - 2, food.description, {
         fontSize: '11px',
         color: '#cbd5e1',
+        wordWrap: { width: 290 },
       });
 
       const ownedCount = this.foodInventory[food.id] || 0;
+
+      // Buy Button & Counter
       const buyBtn = this.add
-        .rectangle(width / 2 + 170, cardY, 90, 36, 0x16a34a)
+        .rectangle(width / 2 + 165, cardY - 8, 100, 36, 0x16a34a)
         .setInteractive({ useHandCursor: true });
       const buyTxt = this.add
-        .text(width / 2 + 170, cardY, `BUY ${food.price}g\n(Owned: ${ownedCount})`, {
-          fontSize: '10px',
+        .text(width / 2 + 165, cardY - 8, `BUY ${food.price}g`, {
+          fontSize: '13px',
           color: '#ffffff',
           fontStyle: 'bold',
-          align: 'center',
+        })
+        .setOrigin(0.5);
+
+      const ownedTxt = this.add
+        .text(width / 2 + 165, cardY + 18, `Owned: ${ownedCount}`, {
+          fontSize: '11px',
+          color: '#ffbe0b',
+          fontStyle: 'bold',
         })
         .setOrigin(0.5);
 
@@ -366,18 +390,19 @@ export class HabitatScene extends Phaser.Scene {
           this.openShopModal();
           this.updateCareUI();
         } else {
-          this.showFloatingText(width / 2 + 170, cardY, 'Not enough coins!', '#ff0054');
+          this.showFloatingText(width / 2 + 165, cardY - 8, 'Not enough coins!', '#ff0054');
         }
       });
 
-      this.shopModalContainer.add([bg, nameTxt, descTxt, buyBtn, buyTxt]);
+      this.shopModalContainer.add([bg, nameTxt, descTxt, buyBtn, buyTxt, ownedTxt]);
     });
 
+    // Close Button
     const closeBtn = this.add
-      .rectangle(width / 2, height / 2 + 145, 140, 36, 0x475569)
+      .rectangle(width / 2, height / 2 + 165, 140, 36, 0x475569)
       .setInteractive({ useHandCursor: true });
     const closeTxt = this.add
-      .text(width / 2, height / 2 + 145, 'CLOSE', {
+      .text(width / 2, height / 2 + 165, 'CLOSE', {
         fontSize: '13px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -385,8 +410,7 @@ export class HabitatScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     closeBtn.on('pointerdown', () => this.shopModalContainer.setVisible(false));
-
-    this.shopModalContainer.add([overlay, box, title, closeBtn, closeTxt]);
+    this.shopModalContainer.add([closeBtn, closeTxt]);
   }
 
   private openMapSelectionModal(): void {
@@ -717,27 +741,22 @@ export class HabitatScene extends Phaser.Scene {
     this.devModalContainer.add([closeBtn, closeTxt]);
   }
 
+  // REDESIGNED EQUIPMENT & INVENTORY PANEL (No Overlapping, Clean Slots + Pagination)
   private setupEquipmentPanel(width: number, height: number): void {
     const panelX = width - 340;
     const panelY = height / 2 + 10;
-    const panelW = 300;
+    const panelW = 310;
     const panelH = 540;
 
     this.add.rectangle(panelX, panelY, panelW, panelH, 0x0f172a, 0.95).setStrokeStyle(2, 0x334155);
 
     this.add
-      .text(panelX, panelY - panelH / 2 + 30, 'EQUIPMENT & INVENTORY', {
-        fontSize: '18px',
+      .text(panelX, panelY - panelH / 2 + 25, 'EQUIPMENT & INVENTORY', {
+        fontSize: '16px',
         color: '#ffbe0b',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
-
-    this.equipStatusText = this.add.text(panelX - 130, panelY - panelH / 2 + 65, 'Equipped: None', {
-      fontSize: '12px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-    });
 
     this.inventoryContainer = this.add.container(0, 0);
   }
@@ -748,27 +767,35 @@ export class HabitatScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const panelX = width - 340;
-    const startY = height / 2 - 130;
+    const panelTopY = height / 2 - 220;
 
     const equipped = EquipmentEngine.getEquippedItems(this.activeCreature);
     const slots: EquipmentSlot[] = ['collar', 'charm', 'toy'];
 
-    let equippedStatusStr = '';
-    slots.forEach((s) => {
-      const item = equipped[s];
-      equippedStatusStr += `${s.toUpperCase()}: ${item ? item.name : 'Empty'}\n`;
-    });
-    this.equipStatusText.setText(equippedStatusStr);
+    // 1. Render 3 Clean Equipped Slot Cards at top of panel
+    slots.forEach((slot, idx) => {
+      const slotY = panelTopY + idx * 36;
+      const item = equipped[slot];
 
-    // Render Unequip Buttons for 3 slots
-    slots.forEach((s, idx) => {
-      const item = equipped[s];
+      const slotBg = this.add
+        .rectangle(panelX, slotY, 290, 32, 0x1e293b)
+        .setStrokeStyle(1, item ? 0x80ed99 : 0x334155);
+
+      const slotLabelText = `${slot.toUpperCase()}: ${item ? item.name : 'Empty'}`;
+      const slotTxt = this.add.text(panelX - 135, slotY - 7, slotLabelText, {
+        fontSize: '11px',
+        color: item ? '#ffffff' : '#64748b',
+        fontStyle: item ? 'bold' : 'normal',
+      });
+
+      this.inventoryContainer.add([slotBg, slotTxt]);
+
       if (item) {
         const unequipBtn = this.add
-          .rectangle(panelX + 90, height / 2 - 210 + idx * 24, 75, 20, 0xef4444)
+          .rectangle(panelX + 105, slotY, 65, 22, 0xef4444)
           .setInteractive({ useHandCursor: true });
         const unequipTxt = this.add
-          .text(panelX + 90, height / 2 - 210 + idx * 24, `UN-${s.toUpperCase()}`, {
+          .text(panelX + 105, slotY, 'UNEQUIP', {
             fontSize: '9px',
             color: '#ffffff',
             fontStyle: 'bold',
@@ -776,7 +803,7 @@ export class HabitatScene extends Phaser.Scene {
           .setOrigin(0.5);
 
         unequipBtn.on('pointerdown', () => {
-          EquipmentEngine.unequipItem(this.activeCreature, this.inventory, s);
+          EquipmentEngine.unequipItem(this.activeCreature, this.inventory, slot);
           this.persistState();
           this.renderInventoryList();
           this.updateCareUI();
@@ -786,10 +813,64 @@ export class HabitatScene extends Phaser.Scene {
       }
     });
 
-    if (this.inventory.length === 0) {
+    // 2. Inventory Section Divider & Pagination Controls
+    const invHeaderY = panelTopY + 120;
+    const itemsPerPage = 4;
+    const totalPages = Math.max(1, Math.ceil(this.inventory.length / itemsPerPage));
+    if (this.inventoryPage >= totalPages) this.inventoryPage = totalPages - 1;
+
+    const invHeaderBg = this.add.rectangle(panelX, invHeaderY, 290, 26, 0x334155);
+    const invTitleTxt = this.add.text(
+      panelX - 135,
+      invHeaderY - 6,
+      `INVENTORY BAG (${this.inventory.length}) - Pg ${this.inventoryPage + 1}/${totalPages}`,
+      {
+        fontSize: '11px',
+        color: '#ffbe0b',
+        fontStyle: 'bold',
+      },
+    );
+
+    this.inventoryContainer.add([invHeaderBg, invTitleTxt]);
+
+    if (totalPages > 1) {
+      const prevPgBtn = this.add
+        .rectangle(panelX + 90, invHeaderY, 28, 20, 0x475569)
+        .setInteractive({ useHandCursor: true });
+      const prevPgTxt = this.add
+        .text(panelX + 90, invHeaderY, '◄', { fontSize: '10px', color: '#ffffff' })
+        .setOrigin(0.5);
+
+      const nextPgBtn = this.add
+        .rectangle(panelX + 125, invHeaderY, 28, 20, 0x475569)
+        .setInteractive({ useHandCursor: true });
+      const nextPgTxt = this.add
+        .text(panelX + 125, invHeaderY, '►', { fontSize: '10px', color: '#ffffff' })
+        .setOrigin(0.5);
+
+      prevPgBtn.on('pointerdown', () => {
+        this.inventoryPage = (this.inventoryPage - 1 + totalPages) % totalPages;
+        this.renderInventoryList();
+      });
+
+      nextPgBtn.on('pointerdown', () => {
+        this.inventoryPage = (this.inventoryPage + 1) % totalPages;
+        this.renderInventoryList();
+      });
+
+      this.inventoryContainer.add([prevPgBtn, prevPgTxt, nextPgBtn, nextPgTxt]);
+    }
+
+    // 3. Inventory Items List for Current Page (Max 4 items visible, no overflow)
+    const pageItems = this.inventory.slice(
+      this.inventoryPage * itemsPerPage,
+      (this.inventoryPage + 1) * itemsPerPage,
+    );
+
+    if (pageItems.length === 0) {
       const emptyText = this.add
-        .text(panelX, startY + 50, 'Inventory Empty\n(Defeat enemies in Defense run)', {
-          fontSize: '13px',
+        .text(panelX, invHeaderY + 60, 'Inventory Empty\n(Defeat enemies in Defense run)', {
+          fontSize: '12px',
           color: '#64748b',
           align: 'center',
         })
@@ -798,36 +879,41 @@ export class HabitatScene extends Phaser.Scene {
       return;
     }
 
-    this.inventory.forEach((itemId, idx) => {
+    pageItems.forEach((itemId, idx) => {
       const itemConfig = EQUIPMENT_DATA[itemId];
       if (!itemConfig) return;
 
-      const itemY = startY + idx * 70;
+      const itemY = invHeaderY + 45 + idx * 62;
 
       const itemBg = this.add
-        .rectangle(panelX, itemY, 270, 60, 0x1e293b)
+        .rectangle(panelX, itemY, 290, 54, 0x1e293b)
         .setStrokeStyle(1, 0x475569);
+
+      // Truncate name if long
+      const displayName =
+        itemConfig.name.length > 15 ? itemConfig.name.substring(0, 14) + '..' : itemConfig.name;
       const nameTxt = this.add.text(
-        panelX - 120,
+        panelX - 135,
         itemY - 18,
-        `${itemConfig.name} [${itemConfig.slot.toUpperCase()}]`,
+        `${displayName} [${itemConfig.slot.toUpperCase()}]`,
         {
-          fontSize: '13px',
+          fontSize: '11px',
           color: '#f8fafc',
           fontStyle: 'bold',
         },
       );
-      const descTxt = this.add.text(panelX - 120, itemY + 2, itemConfig.description, {
-        fontSize: '10px',
+
+      const descTxt = this.add.text(panelX - 135, itemY + 2, itemConfig.description, {
+        fontSize: '9px',
         color: '#94a3b8',
       });
 
       // EQUIP Button
       const equipBtn = this.add
-        .rectangle(panelX + 55, itemY, 55, 26, 0x3b82f6)
+        .rectangle(panelX + 50, itemY, 52, 24, 0x3b82f6)
         .setInteractive({ useHandCursor: true });
       const btnTxt = this.add
-        .text(panelX + 55, itemY, 'EQUIP', {
+        .text(panelX + 50, itemY, 'EQUIP', {
           fontSize: '10px',
           color: '#ffffff',
           fontStyle: 'bold',
@@ -843,14 +929,13 @@ export class HabitatScene extends Phaser.Scene {
 
       // SELL Button (+Coins)
       const sellBtn = this.add
-        .rectangle(panelX + 115, itemY, 50, 26, 0xd97706)
+        .rectangle(panelX + 110, itemY, 55, 24, 0xd97706)
         .setInteractive({ useHandCursor: true });
       const sellTxt = this.add
-        .text(panelX + 115, itemY, `SELL\n${itemConfig.sellValue}g`, {
+        .text(panelX + 110, itemY, `SELL ${itemConfig.sellValue}g`, {
           fontSize: '9px',
           color: '#ffffff',
           fontStyle: 'bold',
-          align: 'center',
         })
         .setOrigin(0.5);
 
