@@ -50,8 +50,13 @@ export class BattleRunState {
   public maxTowerHp: number = 100;
 
   public speciesId: string = 'guardian_blob';
-  public normalAbilityId: string = 'basic_laser';
-  public specialAbilityId: string = 'aoe_pulse';
+  public attackId: string = 'impact_bash';
+  public abilityId: string = 'aegis_barrier';
+  public behaviourStyle: string = 'guardian_taunt';
+  public evolutionStage: number = 1;
+  public personalityTraits: string[] = [];
+  public normalAbilityId: string = 'impact_bash';
+  public specialAbilityId: string = 'aegis_barrier';
 
   public creatureFullness: number = 100;
   public creatureAffection: number = 100;
@@ -100,8 +105,11 @@ export class BattleRunState {
 
     this.speciesId = speciesId;
     const speciesConfig = SPECIES_DATA[speciesId] || SPECIES_DATA.guardian_blob;
-    this.normalAbilityId = speciesConfig.attackId || 'basic_laser';
-    this.specialAbilityId = speciesConfig.abilityId || 'aoe_pulse';
+    this.attackId = speciesConfig.attackId || 'impact_bash';
+    this.abilityId = speciesConfig.abilityId || 'aegis_barrier';
+    this.behaviourStyle = speciesConfig.behaviourStyle || 'guardian_taunt';
+    this.normalAbilityId = this.attackId;
+    this.specialAbilityId = this.abilityId;
 
     this.creatureFullness = fullness;
     this.creatureAffection = affection;

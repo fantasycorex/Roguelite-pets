@@ -19,12 +19,16 @@ export class RunController {
     fullness: number = 100,
     affection: number = 100,
     activeNextRunBuff?: { type: string; multiplier: number },
+    customSeed?: number,
   ) {
     this.selectedMapId = mapId;
     this.waveSet = mapId === 'moonlit_crossing' ? WAVES_DATA_MAP2 : WAVES_DATA_MAP1;
     this.activeNextRunBuff = activeNextRunBuff;
 
     this.runState = new BattleRunState(petStats, mapId, speciesId, fullness, affection);
+    if (customSeed !== undefined) {
+      this.runState.runSeed = customSeed;
+    }
     this.runState.totalWaves = this.waveSet.length;
 
     this.combatEngine = new CombatEngine(

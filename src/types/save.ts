@@ -1,5 +1,6 @@
 import { OwnedCreature, PermanentCreatureProfile } from './creature';
 import { FoodBuffType } from './food';
+import { RunHistoryRecord } from '../core/director/RunDirector';
 
 export interface SaveDataSchema {
   version: number;
@@ -11,5 +12,6 @@ export interface SaveDataSchema {
   unlockedTraits: string[];
   tutorialCompleted: boolean;
   activeNextRunBuff?: { type: FoodBuffType; multiplier: number };
+  runHistory?: RunHistoryRecord[];
   creatureProfile?: PermanentCreatureProfile; // legacy profile fallback
 }

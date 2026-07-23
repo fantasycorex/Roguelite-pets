@@ -47,7 +47,7 @@ describe('Critical Fixes Verification Tests', () => {
   it('Issue 3: BattleRunState wires species combat identities (normal & special abilities)', () => {
     const state = new BattleRunState(DEFAULT_CREATURE_STATS, 'heartwood_clearing', 'spark_fox');
     expect(state.speciesId).toBe('spark_fox');
-    expect(state.normalAbilityId).toBe('basic_laser');
+    expect(state.normalAbilityId).toBe('fire_bolt');
     expect(state.specialAbilityId).toBe('fire_blast');
   });
 

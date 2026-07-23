@@ -260,11 +260,11 @@ export class HabitatScene extends Phaser.Scene {
     this.mapSelectionPanel.open(
       this.controller.getSelectedMapId(),
       (mapId) => this.controller.setSelectedMapId(mapId),
-      () => this.startDefenseRun(),
+      (difficulty, seed) => this.startDefenseRun(difficulty, seed),
     );
   }
 
-  private startDefenseRun(): void {
+  private startDefenseRun(difficulty: string = 'normal', seed?: number): void {
     soundEngine.playAttackSound();
     const payload = this.controller.prepareDefenseRun();
 
@@ -275,6 +275,8 @@ export class HabitatScene extends Phaser.Scene {
       fullness: payload.fullness,
       affection: payload.affection,
       activeNextRunBuff: payload.activeNextRunBuff,
+      difficulty,
+      runSeed: seed,
     });
   }
 

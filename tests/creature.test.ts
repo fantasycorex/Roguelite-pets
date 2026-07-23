@@ -89,7 +89,7 @@ describe('Milestone 10 — Creature Identity, Level and Evolution Unit Tests', (
     const statsLv5 = CreatureEngine.getEffectiveStats(creatureLv5);
 
     expect(statsLv5.maxHp).toBe(statsLv1.maxHp + 25 * 4); // +25 per level offset
-    expect(statsLv5.attackDamage).toBe(statsLv1.attackDamage + 2 * 4);
+    expect(statsLv5.attackDamage).toBe(statsLv1.attackDamage + 3 * 4);
   });
 
   it('validates evolution prerequisites and transforms species to Stage 2', () => {

@@ -36,4 +36,23 @@ export const MAPS_DATA: Record<string, MapConfig> = {
     towerPosition: { x: 640, y: 360 },
     patrolRadius: 90,
   },
+  volcanic_ridge: {
+    id: 'volcanic_ridge',
+    name: 'Volcanic Ridge',
+    description: 'Hazardous magma crater with triple converging assault routes.',
+    waypoints: [
+      // Track 0: Top spawn -> crater center
+      { x: 640, y: -30 },
+      { x: 640, y: 220 },
+      { x: 640, y: 360 },
+    ],
+    secondaryWaypoints: [
+      // Track 1: Bottom-right spawn -> crater center
+      { x: 1310, y: 600 },
+      { x: 900, y: 480 },
+      { x: 640, y: 360 },
+    ],
+    towerPosition: { x: 640, y: 360 },
+    patrolRadius: 100,
+  },
 };

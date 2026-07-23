@@ -30,6 +30,9 @@ export class DefenseScene extends Phaser.Scene {
   private affection: number = 100;
   private activeNextRunBuff?: { type: string; multiplier: number };
 
+  private difficulty: string = 'normal';
+  private runSeed?: number;
+
   constructor() {
     super({ key: 'DefenseScene' });
   }
@@ -41,6 +44,8 @@ export class DefenseScene extends Phaser.Scene {
     fullness?: number;
     affection?: number;
     activeNextRunBuff?: { type: string; multiplier: number };
+    difficulty?: string;
+    runSeed?: number;
   }): void {
     this.petStats = data?.petStats || { ...DEFAULT_CREATURE_STATS };
     this.selectedMapId = data?.mapId || 'heartwood_clearing';
@@ -48,6 +53,8 @@ export class DefenseScene extends Phaser.Scene {
     this.fullness = data?.fullness ?? 100;
     this.affection = data?.affection ?? 100;
     this.activeNextRunBuff = data?.activeNextRunBuff;
+    this.difficulty = data?.difficulty || 'normal';
+    this.runSeed = data?.runSeed;
   }
 
   create(): void {
@@ -62,6 +69,7 @@ export class DefenseScene extends Phaser.Scene {
       this.fullness,
       this.affection,
       this.activeNextRunBuff,
+      this.runSeed,
     );
 
     const runState = this.runController.getRunState();
@@ -278,7 +286,7 @@ export class DefenseScene extends Phaser.Scene {
     const { waveIndex } = data as { waveIndex: number };
     const runState = this.runController.getRunState();
     this.hud.waveText.setText(
-      `${runState.mapConfig.name.toUpperCase()} • WAVE ${waveIndex} / ${runState.totalWaves}  (#${runState.runSeed})`,
+      `${runState.mapConfig.name.toUpperCase()} (${this.difficulty.toUpperCase()}) • WAVE ${waveIndex} / ${runState.totalWaves} (#${runState.runSeed})`,
     );
     this.hud.bannerText.setText(`WAVE ${waveIndex} START!`);
     this.time.delayedCall(1200, () => this.hud.bannerText.setText(''));

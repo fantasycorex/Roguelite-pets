@@ -156,14 +156,19 @@
 - [x] Exit condition achieved: Scenes orchestrate input and rendering but do not directly perform economy, progression, or care calculations.
 
 ### Milestone 17 — True Creature Combat Kits
-- [ ] Guardian kit: short-range impact, taunt nearby fighters, protective shield.
-- [ ] Spark kit: ranged fire projectile, burn splash, actual `fire_blast` AoE, flame zones.
-- [ ] Prowler kit: fast precision strike, prioritize runners/saboteurs, rapid multi-strike dash.
+- [x] **Guardian**: Short-range `impact_bash` attack, `guardian_taunt` behaviour, `aegis_barrier` shield pulse.
+- [x] **Spark**: Long-range `fire_bolt` attack, `spark_caster` splash burn, `fire_blast` explosion.
+- [x] **Prowler**: Fast precision `shadow_strike` attack, `prowler_interceptor` targeting runners/saboteurs, `shadow_dash` multi-strike.
+- [x] Wired combat identity fields through `BattleRunState` (`speciesId`, `attackId`, `abilityId`, `behaviourStyle`, `evolutionStage`, `personalityTraits`).
+- [x] Exit condition achieved: Distinct visual attacks, ranges, targeting preferences, and special abilities make every creature identifiable without HUD.
 
 ### Milestone 18 — Run Director and Replayability
-- [ ] Authored run structure (`RunConfig`, `EncounterConfig` for normal, elite, rest, boss encounters).
-- [ ] Branching encounter choices, elite rewards, difficulty tiers (`Normal`, `Challenging`, `Guardian`).
-- [ ] Seed entry & replay, run history tracking, 3rd map, boss telegraph vulnerability windows.
+- [x] Authored run structure & encounter configs (`RunDirector.ts` with `normal`, `elite`, `rest`, `boss` nodes).
+- [x] Difficulty tiers (`Normal`, `Challenging`, `Guardian` scaling enemy HP, damage, and rewards).
+- [x] Seed entry & replayability in Map Selection modal.
+- [x] Run History tracking in `SaveManager` (`runHistory`).
+- [x] Map 3 — `Volcanic Ridge` with triple converging assault paths.
+- [x] Boss mechanics with phase 2 enrage, minion summoning, and telegraph warning graphics.
 
 ### Milestone 19 — Meaningful Meta-Progression
 - [ ] Trait unlock progression through creature levels, victories, and evolutions.

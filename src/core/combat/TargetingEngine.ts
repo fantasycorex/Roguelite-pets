@@ -8,7 +8,7 @@ export interface TargetableEnemy {
   maxHp: number;
   distanceCovered: number;
   damageToTower?: number;
-  config?: { damageToTower?: number };
+  config?: { id?: string; damageToTower?: number };
 }
 
 export class TargetingEngine {
@@ -73,6 +73,12 @@ export class TargetingEngine {
 
       case 'closest_to_tower':
       default: {
+        // Prowler runner check: prioritize fast runners & saboteurs first
+        const runnerTarget = inRangeEnemies.find(
+          (e) => e.config?.id === 'fast' || e.config?.id === 'saboteur',
+        );
+        if (runnerTarget) return runnerTarget;
+
         let bestEnemy: TargetableEnemy | null = null;
         let maxDistCovered = -1;
         for (const enemy of inRangeEnemies) {

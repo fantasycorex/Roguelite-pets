@@ -17,6 +17,7 @@ export const DEFAULT_SAVE_DATA: SaveDataSchema = {
   totalCoins: 100,
   unlockedTraits: ['sharp_claws', 'swift_fury'],
   tutorialCompleted: false,
+  runHistory: [],
 };
 
 export class SaveManager {
@@ -173,6 +174,9 @@ export class SaveManager {
     }
     if (typeof data.tutorialCompleted !== 'boolean') {
       data.tutorialCompleted = false;
+    }
+    if (!Array.isArray(data.runHistory)) {
+      data.runHistory = [];
     }
     return data;
   }
