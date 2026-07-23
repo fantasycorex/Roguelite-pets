@@ -18,15 +18,22 @@ export const DEFAULT_SAVE_DATA: SaveDataSchema = {
   unlockedTraits: ['sharp_claws', 'swift_fury'],
   tutorialCompleted: false,
   runHistory: [],
+  discoveredEquipment: ['wooden_collar', 'swift_bell', 'squeaky_ball'],
+  unlockedMaps: ['heartwood_clearing', 'moonlit_crossing'],
+  unlockedDifficulties: ['normal', 'challenging'],
+  speciesMastery: {
+    guardian_blob: { level: 1, exp: 0 },
+    spark_fox: { level: 1, exp: 0 },
+    prowler_lynx: { level: 1, exp: 0 },
+  },
+  lastCareTimestamp: Date.now(),
 };
 
 export class SaveManager {
-  /**
-   * Saves game state payload to localStorage
-   */
   public static saveGame(data: SaveDataSchema): boolean {
     try {
       data.version = CURRENT_SAVE_SCHEMA_VERSION;
+      data.lastCareTimestamp = Date.now();
       const json = JSON.stringify(data);
       localStorage.setItem(SAVE_STORAGE_KEY, json);
       return true;
@@ -36,9 +43,6 @@ export class SaveManager {
     }
   }
 
-  /**
-   * Performs partial save update preserving all unmentioned fields
-   */
   public static updateSaveData(updates: Partial<SaveDataSchema>): SaveDataSchema {
     const current = this.loadGame();
     const updated: SaveDataSchema = {
@@ -47,14 +51,12 @@ export class SaveManager {
       ownedCreatures: updates.ownedCreatures || current.ownedCreatures,
       foodInventory: updates.foodInventory || current.foodInventory,
       version: CURRENT_SAVE_SCHEMA_VERSION,
+      lastCareTimestamp: Date.now(),
     };
     this.saveGame(updated);
     return updated;
   }
 
-  /**
-   * Loads game state from localStorage with fallback & version migration verification
-   */
   public static loadGame(): SaveDataSchema {
     try {
       let json = localStorage.getItem(SAVE_STORAGE_KEY);
@@ -90,18 +92,12 @@ export class SaveManager {
     }
   }
 
-  /**
-   * Gets active owned creature object from save
-   */
   public static getActiveCreature(saveData?: SaveDataSchema): OwnedCreature {
     const save = saveData || this.loadGame();
     const found = save.ownedCreatures.find((c) => c.instanceId === save.activeCreatureInstanceId);
     return found || save.ownedCreatures[0] || DEFAULT_SAVE_DATA.ownedCreatures[0];
   }
 
-  /**
-   * Resets save data back to default initial state
-   */
   public static resetSave(): SaveDataSchema {
     try {
       localStorage.removeItem(SAVE_STORAGE_KEY);
@@ -116,6 +112,24 @@ export class SaveManager {
     return defaults;
   }
 
+  public static exportSavePayload(): string {
+    const data = this.loadGame();
+    return JSON.stringify(data, null, 2);
+  }
+
+  public static importSavePayload(jsonStr: string): { success: boolean; message?: string } {
+    try {
+      const parsed = JSON.parse(jsonStr) as SaveDataSchema;
+      if (!parsed || typeof parsed.version !== 'number' || !Array.isArray(parsed.ownedCreatures)) {
+        return { success: false, message: 'Invalid save payload structure!' };
+      }
+      this.saveGame(parsed);
+      return { success: true };
+    } catch {
+      return { success: false, message: 'Failed to parse JSON string!' };
+    }
+  }
+
   private static createDefaultSave(): SaveDataSchema {
     return JSON.parse(JSON.stringify(DEFAULT_SAVE_DATA));
   }
@@ -123,7 +137,6 @@ export class SaveManager {
   public static migrateSaveData(oldData: Partial<SaveDataSchema>): SaveDataSchema {
     const defaultCreatures = CreatureEngine.createDefaultOwnedCreatures();
 
-    // Migrate legacy profile fields if present
     if (oldData.creatureProfile) {
       const p = oldData.creatureProfile;
       defaultCreatures[0].level = Math.max(1, p.level || 1);
@@ -156,6 +169,16 @@ export class SaveManager {
       tutorialCompleted:
         typeof oldData.tutorialCompleted === 'boolean' ? oldData.tutorialCompleted : false,
       activeNextRunBuff: oldData.activeNextRunBuff,
+      runHistory: oldData.runHistory || [],
+      discoveredEquipment: oldData.discoveredEquipment || ['wooden_collar', 'swift_bell'],
+      unlockedMaps: oldData.unlockedMaps || ['heartwood_clearing', 'moonlit_crossing'],
+      unlockedDifficulties: oldData.unlockedDifficulties || ['normal', 'challenging'],
+      speciesMastery: oldData.speciesMastery || {
+        guardian_blob: { level: 1, exp: 0 },
+        spark_fox: { level: 1, exp: 0 },
+        prowler_lynx: { level: 1, exp: 0 },
+      },
+      lastCareTimestamp: Date.now(),
     };
     this.saveGame(migrated);
     return migrated;
@@ -178,6 +201,35 @@ export class SaveManager {
     if (!Array.isArray(data.runHistory)) {
       data.runHistory = [];
     }
+    if (!Array.isArray(data.discoveredEquipment)) {
+      data.discoveredEquipment = ['wooden_collar', 'swift_bell', 'squeaky_ball'];
+    }
+    if (!Array.isArray(data.unlockedMaps)) {
+      data.unlockedMaps = ['heartwood_clearing', 'moonlit_crossing'];
+    }
+    if (!Array.isArray(data.unlockedDifficulties)) {
+      data.unlockedDifficulties = ['normal', 'challenging'];
+    }
+    if (!data.speciesMastery) {
+      data.speciesMastery = {
+        guardian_blob: { level: 1, exp: 0 },
+        spark_fox: { level: 1, exp: 0 },
+        prowler_lynx: { level: 1, exp: 0 },
+      };
+    }
+
+    // Gentle offline care decay calculation (capped at 50% max decay)
+    if (data.lastCareTimestamp && data.lastCareTimestamp > 0) {
+      const now = Date.now();
+      const elapsedHours = (now - data.lastCareTimestamp) / (1000 * 60 * 60);
+      if (elapsedHours > 0.5) {
+        const decayAmount = Math.min(50, Math.floor(elapsedHours * 5));
+        data.ownedCreatures.forEach((c) => {
+          c.fullness = Math.max(25, c.fullness - decayAmount);
+        });
+      }
+    }
+
     return data;
   }
 }

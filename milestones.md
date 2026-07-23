@@ -171,12 +171,19 @@
 - [x] Boss mechanics with phase 2 enrage, minion summoning, and telegraph warning graphics.
 
 ### Milestone 19 — Meaningful Meta-Progression
-- [ ] Trait unlock progression through creature levels, victories, and evolutions.
-- [ ] Equipment discovery, map/difficulty unlocks, species mastery tracks, save export/import.
+- [x] Dynamic trait unlocks through creature level thresholds (Level 2, 3, 5) via `ProgressionService.ts`.
+- [x] Discovered equipment log (`discoveredEquipment`).
+- [x] Map and difficulty unlocks on victory (`unlockedMaps`, `unlockedDifficulties`).
+- [x] Species mastery tracks (`speciesMastery` levels 1-5 & EXP).
+- [x] Gentle offline care decay timestamp calculation in `SaveManager.ts` (capped at 50% max decay).
+- [x] Save payload Export & Import functionality in `SaveManager.ts` (`exportSavePayload`, `importSavePayload`).
 
 ### Milestone 20 — Production Visual and Audio Pass
-- [ ] Sprite atlas pipeline & animation state machine (idle, move, attack, special, hurt, downed, happy, eating, evolving).
-- [ ] Object pooling for projectiles & VFX, audio buses (music, SFX, master volume).
+- [x] Procedural graphics pipeline in `TextureGenerator.ts` for creatures, evolutions, enemies, boss, habitat, and icons.
+- [x] 10-state creature animation state machine in `CreatureAnimationStateMachine.ts` (`idle`, `move`, `attack`, `special`, `hurt`, `downed`, `revive`, `happy`, `eating`, `evolving`).
+- [x] `ObjectPool.ts` for reusing active projectiles & visual effects without garbage collection stutter.
+- [x] Multi-bus sound engine (`Master`, `Music`, `SFX`) in `SoundEngine.ts` and `SettingsEngine.ts`.
+- [x] Reduced motion accessibility alternatives & configurable damage floaters.
 
 ### Milestone 21 — Balance, Performance and Accessibility
 - [ ] Headless deterministic run simulator for automated balancing & win-rate reporting.
