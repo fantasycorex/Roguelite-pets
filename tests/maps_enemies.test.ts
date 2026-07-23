@@ -75,8 +75,8 @@ describe('Milestone 12 — Maps, Enemies & Boss Encounter Unit Tests', () => {
     const initialDistance = spitter.distanceCovered;
     engine.update(1.0);
 
-    // Spitter should pause path progression to shoot from range
-    expect(spitter.distanceCovered).toBe(initialDistance);
+    // Spitter should advance at reduced speed while firing from range
+    expect(spitter.distanceCovered).toBeGreaterThan(initialDistance);
   });
 
   it('triggers Void Sovereign 2-Phase transition and enrage at 50% HP threshold', () => {

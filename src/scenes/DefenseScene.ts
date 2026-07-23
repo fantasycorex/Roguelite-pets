@@ -12,6 +12,7 @@ import { DEFAULT_CREATURE_STATS } from '../data/creatures.data';
 import { CreatureStats } from '../types/creature';
 import { ActiveEnemy } from '../core/state/BattleRunState';
 import { EquipmentConfig } from '../types/equipment';
+import { TraitConfig } from '../types/trait';
 import { soundEngine } from '../core/audio/SoundEngine';
 
 export class DefenseScene extends Phaser.Scene {

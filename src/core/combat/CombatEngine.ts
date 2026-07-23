@@ -294,7 +294,31 @@ export class CombatEngine {
             });
           }
         }
-        continue; // Pauses path progression while attacking from range
+        // Advance at half speed while firing along path
+        enemy.distanceCovered += effectiveSpeed * 0.5 * deltaSeconds;
+        const pos = this.pathEngine.getPositionAlongPath(
+          enemy.distanceCovered,
+          enemy.trackIndex || 0,
+        );
+        enemy.x = pos.x;
+        enemy.y = pos.y;
+        if (pos.reachedEnd) {
+          this.runState.towerHp = Math.max(0, this.runState.towerHp - enemy.config.damageToTower);
+          this.triggerOnTowerDamaged(enemy.config.damageToTower);
+          eventBus.emit('TOWER_DAMAGED', {
+            currentHp: this.runState.towerHp,
+            maxHp: this.runState.maxTowerHp,
+            damage: enemy.config.damageToTower,
+          });
+          enemy.state = 'DYING';
+          enemiesToRemove.push(enemy.instanceId);
+          if (this.runState.towerHp <= 0) {
+            this.isWaveActive = false;
+            eventBus.emit('TOWER_DESTROYED');
+            break;
+          }
+        }
+        continue;
       }
 
       // Handle Tank Creature Fighter behavior ('fight_creature')
