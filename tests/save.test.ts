@@ -42,6 +42,7 @@ describe('SaveManager Unit Tests', () => {
       inventory: ['wooden_collar', 'ruby_pendant'],
       totalCoins: 250,
       unlockedTraits: ['sharp_claws'],
+      tutorialCompleted: false,
     };
 
     const saved = SaveManager.saveGame(customSave);
@@ -60,6 +61,7 @@ describe('SaveManager Unit Tests', () => {
       inventory: ['ruby_pendant'],
       totalCoins: 999,
       unlockedTraits: [],
+      tutorialCompleted: true,
     };
 
     SaveManager.saveGame(customSave);

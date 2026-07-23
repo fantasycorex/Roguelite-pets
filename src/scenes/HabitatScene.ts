@@ -13,6 +13,7 @@ export class HabitatScene extends Phaser.Scene {
   private profile!: PermanentCreatureProfile;
   private inventory: string[] = [];
   private totalCoins: number = 0;
+  private tutorialCompleted: boolean = false;
 
   private hungerBar!: Phaser.GameObjects.Graphics;
   private affectionBar!: Phaser.GameObjects.Graphics;
@@ -31,35 +32,30 @@ export class HabitatScene extends Phaser.Scene {
     super({ key: 'HabitatScene' });
   }
 
-  init(data?: { coinsEarned?: number; droppedEquipment?: string[] }): void {
+  init(): void {
+    this.refreshFromSaveData();
+  }
+
+  private refreshFromSaveData(): void {
     const saveData = SaveManager.loadGame();
     this.profile = saveData.creatureProfile;
     this.inventory = saveData.inventory;
     this.totalCoins = saveData.totalCoins;
-
-    if (data) {
-      if (data.coinsEarned) {
-        this.totalCoins += data.coinsEarned;
-      }
-      if (data.droppedEquipment && data.droppedEquipment.length > 0) {
-        this.inventory.push(...data.droppedEquipment);
-      }
-      this.persistState();
-    }
+    this.tutorialCompleted = saveData.tutorialCompleted;
   }
 
   private persistState(): void {
-    SaveManager.saveGame({
-      version: 1,
+    SaveManager.updateSaveData({
       creatureProfile: this.profile,
       inventory: this.inventory,
       totalCoins: this.totalCoins,
-      unlockedTraits: [],
+      tutorialCompleted: this.tutorialCompleted,
     });
   }
 
   create(): void {
     phaseManager.setPhase(GamePhase.HABITAT);
+    this.refreshFromSaveData();
     const { width, height } = this.scale;
 
     // Background
@@ -168,12 +164,8 @@ export class HabitatScene extends Phaser.Scene {
     this.updateCareUI();
     this.renderInventoryList();
 
-    // Check if onboarding tutorial should be shown (first load)
-    if (
-      this.totalCoins === 50 &&
-      this.inventory.length === 1 &&
-      this.inventory[0] === 'wooden_collar'
-    ) {
+    // Check tutorial status explicitly from save
+    if (!this.tutorialCompleted) {
       this.showTutorialModal();
     }
   }
@@ -225,7 +217,11 @@ export class HabitatScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    startBtn.on('pointerdown', () => this.tutorialContainer.setVisible(false));
+    startBtn.on('pointerdown', () => {
+      this.tutorialCompleted = true;
+      this.persistState();
+      this.tutorialContainer.setVisible(false);
+    });
 
     this.tutorialContainer.add([overlay, box, title, guideText, startBtn, btnTxt]);
   }
@@ -293,6 +289,7 @@ export class HabitatScene extends Phaser.Scene {
           this.profile = fresh.creatureProfile;
           this.inventory = fresh.inventory;
           this.totalCoins = fresh.totalCoins;
+          this.tutorialCompleted = fresh.tutorialCompleted;
           this.renderInventoryList();
           this.updateCareUI();
         },

@@ -97,7 +97,7 @@ describe('CombatEngine Integration Tests', () => {
     expect(runState.activeEnemies.size).toBe(0);
     expect(waveCompletedListener).toHaveBeenCalledWith({
       waveIndex: 1,
-      coinsEarned: 0,
+      coinsEarned: 5,
     });
   });
 

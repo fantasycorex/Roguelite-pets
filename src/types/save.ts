@@ -6,4 +6,5 @@ export interface SaveDataSchema {
   inventory: string[]; // equipment IDs
   totalCoins: number;
   unlockedTraits: string[];
+  tutorialCompleted: boolean;
 }

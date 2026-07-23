@@ -6,6 +6,7 @@ import { ENEMIES_DATA } from '../../data/enemies.data';
 import { eventBus } from '../events/EventBus';
 import { TraitEngine } from '../traits/TraitEngine';
 import { TraitConfig } from '../../types/trait';
+import { TRAITS_DATA } from '../../data/traits.data';
 import { LootEngine } from '../loot/LootEngine';
 import { SeededRandom } from '../utils/SeededRandom';
 
@@ -74,10 +75,10 @@ export class CombatEngine {
       this.spawnEnemy(spawnItem.enemyTypeId);
     }
 
-    // 2. Move Pet in Patrol Orbit
+    // 2. Move Pet in Patrol Orbit (scaled by pet moveSpeed)
     this.updatePetPatrol(deltaSeconds);
 
-    // 3. Move Active Enemies
+    // 3. Move Active Enemies & handle deaths
     this.updateEnemies(deltaSeconds);
 
     // 4. Pet Attack Logic
@@ -112,6 +113,8 @@ export class CombatEngine {
       distanceCovered: 0,
       x: startPos.x,
       y: startPos.y,
+      state: 'ALIVE',
+      rewardGranted: false,
     };
 
     this.runState.activeEnemies.set(instanceId, enemy);
@@ -119,7 +122,10 @@ export class CombatEngine {
   }
 
   private updatePetPatrol(deltaSeconds: number): void {
-    this.runState.petPatrolAngle += deltaSeconds * 1.5;
+    const baseAngularSpeed = 1.5;
+    const speedFactor = (this.runState.petStats.moveSpeed || 100) / 100;
+    this.runState.petPatrolAngle += deltaSeconds * baseAngularSpeed * speedFactor;
+
     this.runState.petX =
       this.towerCenter.x + Math.cos(this.runState.petPatrolAngle) * this.patrolRadius;
     this.runState.petY =
@@ -130,7 +136,13 @@ export class CombatEngine {
     const enemiesToRemove: string[] = [];
 
     for (const enemy of this.runState.activeEnemies.values()) {
+      if (enemy.state !== 'ALIVE') {
+        enemiesToRemove.push(enemy.instanceId);
+        continue;
+      }
+
       if (enemy.currentHp <= 0) {
+        this.handleEnemyDeath(enemy);
         enemiesToRemove.push(enemy.instanceId);
         continue;
       }
@@ -150,6 +162,7 @@ export class CombatEngine {
           damage: enemy.config.damageToTower,
         });
 
+        enemy.state = 'DYING';
         enemiesToRemove.push(enemy.instanceId);
 
         if (this.runState.towerHp <= 0) {
@@ -161,6 +174,8 @@ export class CombatEngine {
     }
 
     for (const id of enemiesToRemove) {
+      const e = this.runState.activeEnemies.get(id);
+      if (e) e.state = 'REMOVED';
       this.runState.activeEnemies.delete(id);
     }
   }
@@ -172,7 +187,9 @@ export class CombatEngine {
     }
 
     if (this.runState.petAttackCooldownTimer <= 0) {
-      const activeEnemiesArray = Array.from(this.runState.activeEnemies.values());
+      const activeEnemiesArray = Array.from(this.runState.activeEnemies.values()).filter(
+        (e) => e.state === 'ALIVE',
+      );
       const target = TargetingEngine.selectTarget(
         this.runState.petX,
         this.runState.petY,
@@ -187,16 +204,27 @@ export class CombatEngine {
       }
     }
 
-    // Special Ability cooldown
-    if (this.runState.petSpecialCooldownTimer > 0) {
-      this.runState.petSpecialCooldownTimer -= deltaSeconds;
-    } else if (this.runState.activeEnemies.size > 0) {
-      this.triggerSpecialAbility();
-      this.runState.petSpecialCooldownTimer = this.runState.petStats.specialCooldown;
+    // Special Ability cooldown (only if unlocked)
+    const hasSpecialUnlocked =
+      this.runState.hasSpecialAbility ||
+      this.runState.activeTraits.some((id) => TRAITS_DATA[id]?.effect.type === 'special_ability');
+
+    if (hasSpecialUnlocked) {
+      if (this.runState.petSpecialCooldownTimer > 0) {
+        this.runState.petSpecialCooldownTimer -= deltaSeconds;
+      } else if (this.runState.activeEnemies.size > 0) {
+        this.triggerSpecialAbility();
+        this.runState.petSpecialCooldownTimer = this.runState.petStats.specialCooldown;
+      }
     }
   }
 
   private handleEnemyDeath(enemy: ActiveEnemy): void {
+    if (enemy.rewardGranted || enemy.state === 'REMOVED') return;
+
+    enemy.state = 'DYING';
+    enemy.rewardGranted = true;
+
     const loot = LootEngine.rollLoot(enemy.config, this.rng, 30); // 30% equip drop chance
 
     this.runState.coinsCollected += loot.coins;
@@ -227,6 +255,8 @@ export class CombatEngine {
     const hitEnemies: string[] = [];
 
     for (const enemy of this.runState.activeEnemies.values()) {
+      if (enemy.state !== 'ALIVE') continue;
+
       const dist = Math.hypot(enemy.x - this.runState.petX, enemy.y - this.runState.petY);
       if (dist <= radius) {
         enemy.currentHp -= aoeDamage;
@@ -277,14 +307,14 @@ export class CombatEngine {
       proj.progress += proj.speed * deltaSeconds;
 
       const targetEnemy = this.runState.activeEnemies.get(proj.targetEnemyInstanceId);
-      if (targetEnemy) {
+      if (targetEnemy && targetEnemy.state === 'ALIVE') {
         proj.targetX = targetEnemy.x;
         proj.targetY = targetEnemy.y;
       }
 
       if (proj.progress >= 1.0) {
         // Impact
-        if (targetEnemy) {
+        if (targetEnemy && targetEnemy.state === 'ALIVE') {
           targetEnemy.currentHp -= proj.damage;
           eventBus.emit('ENEMY_DAMAGED', {
             instanceId: targetEnemy.instanceId,
@@ -294,7 +324,6 @@ export class CombatEngine {
 
           if (targetEnemy.currentHp <= 0) {
             this.handleEnemyDeath(targetEnemy);
-            this.runState.activeEnemies.delete(targetEnemy.instanceId);
           }
         }
       } else {

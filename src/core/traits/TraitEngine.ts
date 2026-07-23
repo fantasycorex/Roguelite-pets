@@ -12,7 +12,7 @@ export class TraitEngine {
   }
 
   /**
-   * Generates 3 unique random trait choices from pool
+   * Generates N unique random trait choices from pool
    */
   public generateTraitOffers(count: number = 3): TraitConfig[] {
     const allTraits = Object.values(TRAITS_DATA);
@@ -20,7 +20,7 @@ export class TraitEngine {
   }
 
   /**
-   * Applies selected trait effect to run state pet stats
+   * Applies selected trait effect to run state pet stats & abilities
    */
   public applyTrait(trait: TraitConfig, runState: BattleRunState): void {
     const { effect } = trait;
@@ -31,9 +31,13 @@ export class TraitEngine {
     } else if (effect.type === 'flat_stat' && effect.targetStat) {
       const current = runState.petStats[effect.targetStat];
       runState.petStats[effect.targetStat] = current + effect.value;
+    } else if (effect.type === 'special_ability') {
+      runState.hasSpecialAbility = true;
     }
 
-    // Add trait ID to active traits list in run state
+    // Sync HP changes
+    runState.creatureMaxHp = runState.petStats.maxHp;
+
     if (!runState.activeTraits) {
       runState.activeTraits = [];
     }

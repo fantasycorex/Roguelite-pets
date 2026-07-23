@@ -1,61 +1,124 @@
 # Roguelite Pets - Development Milestones
 
-## Milestone 1 — Project Foundation
-- [ ] Phaser 3 + TypeScript + Vite project setup.
-- [ ] ESLint, Prettier, and Vitest configuration.
-- [ ] Responsive canvas resolution & scaling manager (Desktop + Mobile Landscape).
-- [ ] Scene skeleton setup: BootScene, PreloadScene, HabitatScene, DefenseScene.
-- [ ] Scene transitions and UI container overlays.
-- [ ] Geometric placeholder graphics generator for pet, enemies, tower, and background.
-- [ ] Basic automated smoke tests validating core event bus and state initialization.
-- [ ] Project documentation (`AGENTS.md`, `README.md`, `milestones.md`).
+## Phase 1 — Vertical Slice Prototype
 
-## Milestone 2 — Combat Sandbox
-- [ ] Fixed path tile/coordinate system for defense map.
-- [ ] Central structure (Tower) with HP and damage handling.
-- [ ] Enemy spawning pipeline along fixed path (3 placeholder enemy types).
-- [ ] Autonomous creature pathfinding/patrol logic around central structure.
-- [ ] Auto-targeting system for nearest enemy in attack range.
-- [ ] Normal creature attack execution & hit detection.
-- [ ] Enemy destruction and basic wave completion criteria.
+### Milestone 1 — Project Foundation
+- [x] Phaser 3 + TypeScript + Vite project setup.
+- [x] ESLint, Prettier, and Vitest configuration.
+- [x] Responsive canvas resolution & scaling manager (Desktop + Mobile Landscape).
+- [x] Scene skeleton setup: BootScene, PreloadScene, HabitatScene, DefenseScene.
+- [x] Scene transitions and UI container overlays.
+- [x] Geometric placeholder graphics generator for pet, enemies, tower, and background.
+- [x] Basic automated smoke tests validating core event bus and state initialization.
+- [x] Project documentation (`AGENTS.md`, `README.md`, `milestones.md`).
 
-## Milestone 3 — Roguelite Progression
-- [ ] Experience points system for creature during runs.
-- [ ] Wave end trigger -> Trait selection phase (`TRAIT_SELECTION`).
-- [ ] Seeded deterministic RNG engine for trait generation.
-- [ ] 3 random trait choices offered per wave clear.
-- [ ] Trait application system (stat boosts, special attacks, attack speed buffs).
-- [ ] Creature special ability implementation.
+### Milestone 2 — Combat Sandbox
+- [x] Fixed path tile/coordinate system for defense map.
+- [x] Central structure (Tower) with HP and damage handling.
+- [x] Enemy spawning pipeline along fixed path (3 placeholder enemy types).
+- [x] Autonomous creature pathfinding/patrol logic around central structure.
+- [x] Auto-targeting system for nearest enemy in attack range.
+- [x] Normal creature attack execution & hit detection.
+- [x] Enemy destruction and basic wave completion criteria.
 
-## Milestone 4 — Habitat & Pet Care
-- [ ] Habitat phase (`HABITAT`) state management.
-- [ ] Pet stats: Hunger (0-100) and Affection (0-100).
-- [ ] Feed interaction: Consumes food item, reduces hunger, increases affection.
-- [ ] Pet interaction: Direct tapping/rubbing pet, increases affection.
-- [ ] Simple pet visual states & micro-animations (idle, happy, hungry).
-- [ ] Care-to-Combat bonus: High affection/full belly grants stat multipliers during defense runs.
+### Milestone 3 — Roguelite Progression
+- [x] Experience points system for creature during runs.
+- [x] Wave end trigger -> Trait selection phase (`TRAIT_SELECTION`).
+- [x] Seeded deterministic RNG engine for trait generation (`SeededRandom`).
+- [x] 3 random trait choices offered per wave clear.
+- [x] Trait application system (stat boosts, special attacks, attack speed buffs).
+- [x] Creature special ability implementation.
 
-## Milestone 5 — RPG Loot & Equipment
-- [ ] Enemy coin drops on defeat + coin collection mechanic.
-- [ ] Loot drop table system (coins + equipment drops based on enemy type).
-- [ ] Single equipment slot system (e.g., Weapon or Collar).
-- [ ] Core inventory data structure and equipment stat modifiers.
-- [ ] Habitat UI for equipping, unequipping, and viewing pet stats.
+### Milestone 4 — Habitat & Pet Care
+- [x] Habitat phase (`HABITAT`) state management.
+- [x] Pet stats: Hunger (0-100) and Affection (0-100).
+- [x] Feed interaction: Consumes food item, reduces hunger, increases affection.
+- [x] Pet interaction: Direct tapping/rubbing pet, increases affection.
+- [x] Simple pet visual states & micro-animations (idle, happy, hungry).
+- [x] Care-to-Combat bonus: High affection/full belly grants stat multipliers during defense runs.
 
-## Milestone 6 — Complete Vertical Slice
-- [ ] 5-Wave defense run loop with increasing difficulty.
-- [ ] Explicit game phases: `HABITAT`, `PREPARATION`, `DEFENSE`, `LOOT`, `TRAIT_SELECTION`, `RESULTS`.
-- [ ] Victory (Wave 5 clear) and Defeat (Tower destroyed) conditions.
-- [ ] End-of-run Results screen displaying summary stats, coins gained, and permanent EXP.
-- [ ] Versioned local storage save/load system (`SaveManager`).
-- [ ] Temporary developer test controls (instant win, add coins, trigger level up).
-- [ ] Game balancing pass for waves, enemy health, damage, and traits.
+### Milestone 5 — RPG Loot & Equipment
+- [x] Enemy coin drops on defeat + coin collection mechanic.
+- [x] Loot drop table system (coins + equipment drops based on enemy type).
+- [x] Single equipment slot system (Accessory slot).
+- [x] Core inventory data structure and equipment stat modifiers.
+- [x] Habitat UI for equipping, unequipping, and viewing pet stats.
 
-## Milestone 7 — Presentation & Polish
-- [ ] High-contrast clean vector/sprite placeholders or SVG-rendered textures.
-- [ ] Web Audio API SFX implementation (attacks, hits, coin pickup, pet sounds).
-- [ ] Background music loops (Habitat ambient & Defense action theme).
-- [ ] Particle systems (pet affection hearts, hit impacts, enemy death bursts).
-- [ ] Screen shake & hit flash camera effects.
-- [ ] Interactive tooltips for traits, stats, and equipment.
-- [ ] Quick interactive onboarding tutorial.
+### Milestone 6 — Complete Vertical Slice
+- [x] 5-Wave defense run loop with increasing difficulty.
+- [x] Explicit game phases: `HABITAT`, `PREPARATION`, `DEFENSE`, `LOOT`, `TRAIT_SELECTION`, `RESULTS`.
+- [x] Victory (Wave 5 clear) and Defeat (Tower destroyed) conditions.
+- [x] End-of-run Results screen displaying summary stats, coins gained, and permanent EXP.
+- [x] Versioned local storage save/load system (`SaveManager`).
+- [x] Temporary developer test controls (instant win, add coins, trigger level up).
+- [x] Game balancing pass for waves, enemy health, damage, and traits.
+
+### Milestone 7 — Presentation & Polish
+- [x] High-contrast clean vector/sprite placeholders.
+- [x] Web Audio API SFX implementation (`SoundEngine` - attacks, hits, coin pickup, pet sounds).
+- [x] Audio mute/unmute toggle controls.
+- [x] Particle systems (floating care popups, hit impacts, enemy death bursts).
+- [x] Screen shake camera effects on damage.
+- [x] Onboarding tutorial modal overlay.
+
+---
+
+## Phase 2 — Playable Alpha Roadmap
+
+### Milestone 8 — Vertical Slice Hardening
+- [x] Centralised, idempotent run reward settlement (`RunRewardSettlementService`).
+- [x] Guaranteed one-time enemy death rewards (`rewardGranted` & lifecycle state).
+- [x] Proper handling for every trait effect type (`special_ability` unlock, `moveSpeed` patrol scaling, `creatureMaxHp`).
+- [x] Preserve all save fields during partial updates (`SaveManager.updateSaveData`).
+- [x] Implement save schema version 2 and migration tests.
+- [x] Replace hard-coded total-wave UI values with values derived from `WAVES_DATA.length`.
+- [x] Add explicit `tutorialCompleted` save flag instead of inventory inference.
+- [x] Add regression unit tests for reward settlement, death rewards, trait unlocks, and save schema migrations.
+
+### Milestone 9 — Data-Driven Combat 2.0
+- [ ] Typed definitions for `MapConfig`, `TowerConfig`, `CreatureCombatConfig`, `AbilityConfig`, `EnemyBehaviourConfig`, `StatusEffectConfig`.
+- [ ] Creature current HP & downed state handling.
+- [ ] Enemy behavior variations:
+  - Fast runners ignoring pet to rush tower.
+  - Tanks stopping to attack pet.
+  - Ranged enemies attacking from path.
+- [ ] Patrol & interception speed driven by creature `moveSpeed`.
+- [ ] Targeting modes: Nearest, Closest to tower, Lowest HP, Highest threat.
+- [ ] Status effects: Slow, Burn, Poison, Stun, Shield.
+- [ ] Data-driven normal & special abilities.
+- [ ] Developer pause, resume, and game speed controls.
+
+### Milestone 10 — Creature Identity, Level & Evolution Framework
+- [ ] Separate `CreatureSpeciesConfig` from `OwnedCreature` saved state.
+- [ ] Initial 3 starter creatures with distinct roles:
+  - **Guardian** (High HP, taunt/block, benefits strongly from affection).
+  - **Spark** (Ranged lightning/AoE, lower HP, benefits from full belly).
+  - **Prowler** (Fast interception, crit/attack-speed builds).
+- [ ] EXP level-up thresholds & multi-level run resolution.
+- [ ] Evolution prerequisites and alpha stage 2 evolution per starter.
+- [ ] Save migration from legacy single-profile schema.
+
+### Milestone 11 — Roguelite Build System 2.0
+- [ ] Expanded trait triggers: `on_hit`, `on_kill`, `on_critical`, `on_special`, `on_tower_damaged`, `periodic`, `status_application`, `ability_modifier`, `conditional_stat`, `tower_support`.
+- [ ] 4 core build families: Ferocity, Swiftness, Elemental, Guardian, Companion.
+- [ ] Trait tags, stack limits, prerequisites, and upgrade chains.
+- [ ] Weighted rarity, duplicate protection, 1 reroll per wave, and current-build HUD panel.
+- [ ] Target pool of 20–24 traits for alpha.
+
+### Milestone 12 — Maps, Enemies & Boss Encounter
+- [ ] Map 1 — Heartwood Clearing (Introductory layout).
+- [ ] Map 2 — Moonlit Crossing (Dual merging paths, multi-threats).
+- [ ] Expanded enemy roster: Gloom Beetle, Shadow Runner, Void Golem, Spitter, Wisp, Saboteur.
+- [ ] Boss encounter with telegraphs, 2 phases, minion spawns, vulnerability windows.
+
+### Milestone 13 — Habitat, Equipment & Economy 2.0
+- [ ] Food inventory & 3 food types with distinct effects + shop.
+- [ ] Petting cooldown/diminishing returns & mood indicators.
+- [ ] Equipment slots: Collar, Charm, Toy.
+- [ ] Item instance IDs, equip comparison, selling, and fixed stat rolls.
+
+### Milestone 14 — Alpha UX, Accessibility & Playtesting
+- [ ] Title screen, settings menu, separate audio volumes.
+- [ ] Touch target parity & keyboard accessibility.
+- [ ] Screen shake toggle, reduced motion, colorblind rarity indicators.
+- [ ] GitHub Actions CI pipeline, Playwright automated browser tests, deployment to GitHub Pages / itch.io.

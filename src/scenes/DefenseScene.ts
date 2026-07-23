@@ -8,7 +8,7 @@ import { DEFAULT_CREATURE_STATS } from '../data/creatures.data';
 import { WAVES_DATA } from '../data/waves.data';
 import { CreatureStats } from '../types/creature';
 import { EquipmentConfig } from '../types/equipment';
-import { SaveManager } from '../core/save/SaveManager';
+import { runRewardSettlementService } from '../core/services/RunRewardSettlementService';
 import { soundEngine } from '../core/audio/SoundEngine';
 
 export class DefenseScene extends Phaser.Scene {
@@ -77,11 +77,12 @@ export class DefenseScene extends Phaser.Scene {
 
     // Combat Engine & Run State
     this.runState = new BattleRunState(this.petStats);
+    this.runState.totalWaves = WAVES_DATA.length;
     this.combatEngine = new CombatEngine(waypoints, towerPos, this.runState);
 
-    // UI Header
+    // UI Header with dynamic total wave count
     this.waveText = this.add
-      .text(width / 2, 30, 'WAVE 1 / 5', {
+      .text(width / 2, 30, `WAVE 1 / ${WAVES_DATA.length}`, {
         fontSize: '24px',
         color: '#f72585',
         fontStyle: 'bold',
@@ -124,11 +125,16 @@ export class DefenseScene extends Phaser.Scene {
 
     btn.on('pointerdown', () => {
       this.cleanupEvents();
-      eventBus.emit('DEFENSE_ABORTED');
-      this.scene.start('HabitatScene', {
+      // Settle rewards once via service
+      runRewardSettlementService.settleRunRewards({
+        runId: this.runState.runId,
         coinsEarned: this.runState.coinsCollected,
+        expEarned: this.runState.expEarned,
         droppedEquipment: this.runState.droppedEquipment,
       });
+
+      eventBus.emit('DEFENSE_ABORTED');
+      this.scene.start('HabitatScene');
     });
 
     // Containers for Modals
@@ -297,7 +303,7 @@ export class DefenseScene extends Phaser.Scene {
 
   private onWaveStarted = (data: unknown): void => {
     const { waveIndex } = data as { waveIndex: number };
-    this.waveText.setText(`WAVE ${waveIndex} / 5`);
+    this.waveText.setText(`WAVE ${waveIndex} / ${WAVES_DATA.length}`);
     this.bannerText.setText(`WAVE ${waveIndex} START!`);
     this.time.delayedCall(1200, () => this.bannerText.setText(''));
   };
@@ -306,7 +312,7 @@ export class DefenseScene extends Phaser.Scene {
     const { waveIndex } = data as { waveIndex: number };
     this.bannerText.setText(`WAVE ${waveIndex} COMPLETED!`);
 
-    if (waveIndex < 5) {
+    if (waveIndex < WAVES_DATA.length) {
       this.time.delayedCall(1500, () => {
         this.bannerText.setText('');
         this.openTraitSelectionModal();
@@ -422,13 +428,13 @@ export class DefenseScene extends Phaser.Scene {
     this.resultsModalContainer.removeAll(true);
     this.resultsModalContainer.setVisible(true);
 
-    const saveData = SaveManager.loadGame();
-    saveData.totalCoins += this.runState.coinsCollected;
-    saveData.creatureProfile.currentExp += this.runState.expEarned;
-    if (this.runState.droppedEquipment.length > 0) {
-      saveData.inventory.push(...this.runState.droppedEquipment);
-    }
-    SaveManager.saveGame(saveData);
+    // Commit rewards idempotently via service
+    runRewardSettlementService.settleRunRewards({
+      runId: this.runState.runId,
+      coinsEarned: this.runState.coinsCollected,
+      expEarned: this.runState.expEarned,
+      droppedEquipment: this.runState.droppedEquipment,
+    });
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
     const box = this.add
@@ -447,7 +453,7 @@ export class DefenseScene extends Phaser.Scene {
       .text(
         width / 2,
         height / 2 - 20,
-        `Waves Cleared: ${this.runState.currentWave} / 5\n\n` +
+        `Waves Cleared: ${this.runState.currentWave} / ${WAVES_DATA.length}\n\n` +
           `Coins Earned: +${this.runState.coinsCollected}g\n` +
           `EXP Earned: +${this.runState.expEarned} exp\n` +
           `Equipment Looted: ${this.runState.droppedEquipment.length} items`,
@@ -472,12 +478,12 @@ export class DefenseScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    let returned = false;
     contBtn.on('pointerdown', () => {
+      if (returned) return; // Prevent double trigger
+      returned = true;
       this.cleanupEvents();
-      this.scene.start('HabitatScene', {
-        coinsEarned: this.runState.coinsCollected,
-        droppedEquipment: this.runState.droppedEquipment,
-      });
+      this.scene.start('HabitatScene');
     });
 
     this.resultsModalContainer.add([overlay, box, title, summaryText, contBtn, contTxt]);
