@@ -118,10 +118,11 @@
 - [x] Map Selection modal in HabitatScene before launching defense run.
 
 ### Milestone 13 — Habitat, Equipment and Economy 2.0
-- [ ] Food inventory & 3 food types with distinct effects + shop.
-- [ ] Petting cooldown/diminishing returns & mood indicators.
-- [ ] Equipment slots: Collar, Charm, Toy.
-- [ ] Item instance IDs, equip comparison, selling, and fixed stat rolls.
+- [x] Food Inventory & Food Shop (`basic_kibble`, `gourmet_treat` +10% EXP buff, `energy_berry` +15% Speed buff).
+- [x] Petting Cooldown & Diminishing Returns mood tracking (`Happy`, `Neutral`, `Tired`).
+- [x] 3 Equipment Slots: Collar, Charm, Toy (`EquipmentEngine.getEquippedItems`).
+- [x] Item Selling for coins (50% value refund) in Inventory panel.
+- [x] Save schema version 4 migration (`foodInventory`, `activeNextRunBuff`).
 
 ### Milestone 14 — Alpha UX, Accessibility and Playtesting
 - [ ] Title screen, settings menu, separate audio volumes.

@@ -31,7 +31,7 @@ describe('SaveManager Unit Tests', () => {
   it('loadGame returns default save data when storage is empty', () => {
     const data = SaveManager.loadGame();
     expect(data.version).toBe(CURRENT_SAVE_SCHEMA_VERSION);
-    expect(data.totalCoins).toBe(50);
+    expect(data.totalCoins).toBe(100);
     expect(data.activeCreatureInstanceId).toBe('c_guardian_1');
     expect(data.ownedCreatures.length).toBe(3);
   });
@@ -42,6 +42,7 @@ describe('SaveManager Unit Tests', () => {
       activeCreatureInstanceId: 'c_spark_1',
       ownedCreatures: CreatureEngine.createDefaultOwnedCreatures(),
       inventory: ['wooden_collar', 'ruby_pendant'],
+      foodInventory: { basic_kibble: 3 },
       totalCoins: 250,
       unlockedTraits: ['sharp_claws'],
       tutorialCompleted: false,
@@ -62,6 +63,7 @@ describe('SaveManager Unit Tests', () => {
       activeCreatureInstanceId: 'c_prowler_1',
       ownedCreatures: CreatureEngine.createDefaultOwnedCreatures(),
       inventory: ['ruby_pendant'],
+      foodInventory: { basic_kibble: 3 },
       totalCoins: 999,
       unlockedTraits: [],
       tutorialCompleted: true,
@@ -70,7 +72,7 @@ describe('SaveManager Unit Tests', () => {
     SaveManager.saveGame(customSave);
     const reset = SaveManager.resetSave();
 
-    expect(reset.totalCoins).toBe(50);
-    expect(reset.inventory).toEqual(['wooden_collar']);
+    expect(reset.totalCoins).toBe(100);
+    expect(reset.inventory).toEqual(['wooden_collar', 'swift_bell', 'squeaky_ball']);
   });
 });

@@ -44,13 +44,13 @@ describe('Milestone 8 — Vertical Slice Hardening Tests', () => {
 
     const first = service.settleRunRewards(payload);
     expect(first.settled).toBe(true);
-    expect(first.saveData.totalCoins).toBe(150); // 50 default + 100
+    expect(first.saveData.totalCoins).toBe(200); // 100 default + 100
     expect(first.saveData.inventory).toContain('spiked_collar');
 
     // Duplicate call with same runId
     const second = service.settleRunRewards(payload);
     expect(second.settled).toBe(false);
-    expect(second.saveData.totalCoins).toBe(150); // Did not double add
+    expect(second.saveData.totalCoins).toBe(200); // Did not double add
   });
 
   it('CombatEngine guarantees one-time enemy death rewards and lifecycle states', () => {

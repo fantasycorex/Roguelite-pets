@@ -2,8 +2,9 @@ import { SaveDataSchema } from '../../types/save';
 import { CreatureEngine } from '../creature/CreatureEngine';
 import { OwnedCreature } from '../../types/creature';
 
-export const CURRENT_SAVE_SCHEMA_VERSION = 3;
-export const SAVE_STORAGE_KEY = 'ROGUELITE_PETS_SAVE_DATA_V3';
+export const CURRENT_SAVE_SCHEMA_VERSION = 4;
+export const SAVE_STORAGE_KEY = 'ROGUELITE_PETS_SAVE_DATA_V4';
+export const LEGACY_SAVE_STORAGE_KEY_V3 = 'ROGUELITE_PETS_SAVE_DATA_V3';
 export const LEGACY_SAVE_STORAGE_KEY_V2 = 'ROGUELITE_PETS_SAVE_DATA_V2';
 export const LEGACY_SAVE_STORAGE_KEY_V1 = 'ROGUELITE_PETS_SAVE_DATA_V1';
 
@@ -11,8 +12,9 @@ export const DEFAULT_SAVE_DATA: SaveDataSchema = {
   version: CURRENT_SAVE_SCHEMA_VERSION,
   activeCreatureInstanceId: 'c_guardian_1',
   ownedCreatures: CreatureEngine.createDefaultOwnedCreatures(),
-  inventory: ['wooden_collar'],
-  totalCoins: 50,
+  inventory: ['wooden_collar', 'swift_bell', 'squeaky_ball'],
+  foodInventory: { basic_kibble: 3, gourmet_treat: 1, energy_berry: 1 },
+  totalCoins: 100,
   unlockedTraits: ['sharp_claws', 'swift_fury'],
   tutorialCompleted: false,
 };
@@ -42,6 +44,7 @@ export class SaveManager {
       ...current,
       ...updates,
       ownedCreatures: updates.ownedCreatures || current.ownedCreatures,
+      foodInventory: updates.foodInventory || current.foodInventory,
       version: CURRENT_SAVE_SCHEMA_VERSION,
     };
     this.saveGame(updated);
@@ -55,12 +58,14 @@ export class SaveManager {
     try {
       let json = localStorage.getItem(SAVE_STORAGE_KEY);
 
-      // Fallback check for legacy V2 save key
+      if (!json) {
+        const v3Json = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY_V3);
+        if (v3Json) json = v3Json;
+      }
       if (!json) {
         const v2Json = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY_V2);
         if (v2Json) json = v2Json;
       }
-      // Fallback check for legacy V1 save key
       if (!json) {
         const v1Json = localStorage.getItem(LEGACY_SAVE_STORAGE_KEY_V1);
         if (v1Json) json = v1Json;
@@ -99,6 +104,7 @@ export class SaveManager {
   public static resetSave(): SaveDataSchema {
     try {
       localStorage.removeItem(SAVE_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY_V3);
       localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY_V2);
       localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY_V1);
     } catch (e) {
@@ -132,14 +138,23 @@ export class SaveManager {
         Array.isArray(oldData.ownedCreatures) && oldData.ownedCreatures.length > 0
           ? oldData.ownedCreatures
           : defaultCreatures,
-      inventory: Array.isArray(oldData.inventory) ? oldData.inventory : ['wooden_collar'],
-      totalCoins: typeof oldData.totalCoins === 'number' ? oldData.totalCoins : 50,
+      inventory:
+        Array.isArray(oldData.inventory) && oldData.inventory.length > 0
+          ? oldData.inventory
+          : ['wooden_collar', 'swift_bell', 'squeaky_ball'],
+      foodInventory: oldData.foodInventory || {
+        basic_kibble: 3,
+        gourmet_treat: 1,
+        energy_berry: 1,
+      },
+      totalCoins: typeof oldData.totalCoins === 'number' ? oldData.totalCoins : 100,
       unlockedTraits:
         Array.isArray(oldData.unlockedTraits) && oldData.unlockedTraits.length > 0
           ? oldData.unlockedTraits
           : ['sharp_claws', 'swift_fury'],
       tutorialCompleted:
         typeof oldData.tutorialCompleted === 'boolean' ? oldData.tutorialCompleted : false,
+      activeNextRunBuff: oldData.activeNextRunBuff,
     };
     this.saveGame(migrated);
     return migrated;
@@ -149,6 +164,9 @@ export class SaveManager {
     if (!Array.isArray(data.ownedCreatures) || data.ownedCreatures.length === 0) {
       data.ownedCreatures = CreatureEngine.createDefaultOwnedCreatures();
       data.activeCreatureInstanceId = 'c_guardian_1';
+    }
+    if (!data.foodInventory) {
+      data.foodInventory = { basic_kibble: 3, gourmet_treat: 1, energy_berry: 1 };
     }
     if (!Array.isArray(data.unlockedTraits)) {
       data.unlockedTraits = ['sharp_claws', 'swift_fury'];

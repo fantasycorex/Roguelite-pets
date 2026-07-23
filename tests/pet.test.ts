@@ -8,6 +8,7 @@ describe('PetCareEngine Unit Tests', () => {
 
   beforeEach(() => {
     profile = { ...DEFAULT_CREATURE_PROFILE, hunger: 50, affection: 50 };
+    PetCareEngine.resetPettingCooldown();
   });
 
   it('feedPet increases hunger and affection up to 100 cap', () => {
@@ -21,9 +22,11 @@ describe('PetCareEngine Unit Tests', () => {
   });
 
   it('petCreature increases affection up to 100 cap', () => {
+    PetCareEngine.resetPettingCooldown();
     const res = PetCareEngine.petCreature(profile, 20);
     expect(res.affection).toBe(70);
 
+    PetCareEngine.resetPettingCooldown();
     const capped = PetCareEngine.petCreature(profile, 50);
     expect(capped.affection).toBe(100);
   });

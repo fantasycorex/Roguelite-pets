@@ -105,7 +105,7 @@ export class CreatureEngine {
         affection: 50,
         fullness: 80,
         personalityTraits: ['protective'],
-        equippedItems: { accessory: 'wooden_collar' },
+        equippedItems: { collar: 'wooden_collar', charm: null, toy: null },
       },
       {
         instanceId: 'c_spark_1',
@@ -117,7 +117,7 @@ export class CreatureEngine {
         affection: 50,
         fullness: 80,
         personalityTraits: ['feisty'],
-        equippedItems: { accessory: null },
+        equippedItems: { collar: null, charm: null, toy: null },
       },
       {
         instanceId: 'c_prowler_1',
@@ -129,7 +129,7 @@ export class CreatureEngine {
         affection: 50,
         fullness: 80,
         personalityTraits: ['swift'],
-        equippedItems: { accessory: null },
+        equippedItems: { collar: null, charm: null, toy: null },
       },
     ];
   }

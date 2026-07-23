@@ -2,12 +2,15 @@ import Phaser from 'phaser';
 import { GamePhase } from '../types/phase';
 import { phaseManager } from '../core/state/PhaseManager';
 import { eventBus } from '../core/events/EventBus';
-import { PetCareEngine } from '../core/pet/PetCareEngine';
+import { PetCareEngine, PetMood } from '../core/pet/PetCareEngine';
 import { OwnedCreature, PermanentCreatureProfile } from '../types/creature';
 import { EquipmentEngine } from '../core/equipment/EquipmentEngine';
+import { EquipmentSlot } from '../types/equipment';
 import { EQUIPMENT_DATA } from '../data/equipment.data';
 import { SPECIES_DATA } from '../data/species.data';
 import { MAPS_DATA } from '../data/maps.data';
+import { FOOD_DATA } from '../data/food.data';
+import { FoodBuffType } from '../types/food';
 import { SaveManager } from '../core/save/SaveManager';
 import { CreatureEngine } from '../core/creature/CreatureEngine';
 import { soundEngine } from '../core/audio/SoundEngine';
@@ -16,15 +19,24 @@ export class HabitatScene extends Phaser.Scene {
   private activeCreature!: OwnedCreature;
   private ownedCreatures: OwnedCreature[] = [];
   private inventory: string[] = [];
+  private foodInventory: Record<string, number> = {
+    basic_kibble: 3,
+    gourmet_treat: 1,
+    energy_berry: 1,
+  };
   private totalCoins: number = 0;
   private tutorialCompleted: boolean = false;
   private selectedMapId: string = 'heartwood_clearing';
+  private activeNextRunBuff?: { type: FoodBuffType; multiplier: number };
+  private currentPetMood: PetMood = 'Happy';
 
   private hungerBar!: Phaser.GameObjects.Graphics;
   private affectionBar!: Phaser.GameObjects.Graphics;
   private hungerText!: Phaser.GameObjects.Text;
   private affectionText!: Phaser.GameObjects.Text;
   private buffBadgeText!: Phaser.GameObjects.Text;
+  private moodText!: Phaser.GameObjects.Text;
+  private runBuffText!: Phaser.GameObjects.Text;
   private equipStatusText!: Phaser.GameObjects.Text;
   private coinsText!: Phaser.GameObjects.Text;
   private audioToggleText!: Phaser.GameObjects.Text;
@@ -33,6 +45,7 @@ export class HabitatScene extends Phaser.Scene {
   private devModalContainer!: Phaser.GameObjects.Container;
   private tutorialContainer!: Phaser.GameObjects.Container;
   private mapSelectContainer!: Phaser.GameObjects.Container;
+  private shopModalContainer!: Phaser.GameObjects.Container;
   private evolveBtnContainer!: Phaser.GameObjects.Container;
 
   constructor() {
@@ -48,8 +61,14 @@ export class HabitatScene extends Phaser.Scene {
     this.ownedCreatures = saveData.ownedCreatures;
     this.activeCreature = SaveManager.getActiveCreature(saveData);
     this.inventory = saveData.inventory;
+    this.foodInventory = saveData.foodInventory || {
+      basic_kibble: 3,
+      gourmet_treat: 1,
+      energy_berry: 1,
+    };
     this.totalCoins = saveData.totalCoins;
     this.tutorialCompleted = saveData.tutorialCompleted;
+    this.activeNextRunBuff = saveData.activeNextRunBuff;
   }
 
   private persistState(): void {
@@ -57,15 +76,16 @@ export class HabitatScene extends Phaser.Scene {
       activeCreatureInstanceId: this.activeCreature.instanceId,
       ownedCreatures: this.ownedCreatures,
       inventory: this.inventory,
+      foodInventory: this.foodInventory,
       totalCoins: this.totalCoins,
       tutorialCompleted: this.tutorialCompleted,
+      activeNextRunBuff: this.activeNextRunBuff,
     });
   }
 
   // Convert OwnedCreature to legacy profile payload for care engine compatibility
   private getProfileFromOwned(c: OwnedCreature): PermanentCreatureProfile {
     const effectiveStats = CreatureEngine.getEffectiveStats(c);
-    const equippedItemId = c.equippedItems.accessory || null;
     return {
       id: c.instanceId,
       name: c.nickname,
@@ -74,7 +94,7 @@ export class HabitatScene extends Phaser.Scene {
       hunger: 100 - c.fullness,
       affection: c.affection,
       lastCareTimestamp: Date.now(),
-      equippedItemId,
+      equippedItemId: null,
       baseStats: effectiveStats,
     };
   }
@@ -154,17 +174,26 @@ export class HabitatScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
 
+    // Pet Mood Badge
+    this.moodText = this.add
+      .text(width / 2 - 120, height / 2 + 55, `Mood: ${this.currentPetMood}`, {
+        fontSize: '12px',
+        color: '#80ed99',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
     // Care Status Bars
     this.hungerBar = this.add.graphics();
     this.affectionBar = this.add.graphics();
 
-    this.hungerText = this.add.text(width / 2 - 340, height / 2 + 75, '', {
+    this.hungerText = this.add.text(width / 2 - 340, height / 2 + 85, '', {
       fontSize: '14px',
       color: '#4cc9f0',
       fontStyle: 'bold',
     });
 
-    this.affectionText = this.add.text(width / 2 - 120, height / 2 + 75, '', {
+    this.affectionText = this.add.text(width / 2 - 120, height / 2 + 85, '', {
       fontSize: '14px',
       color: '#f72585',
       fontStyle: 'bold',
@@ -178,6 +207,15 @@ export class HabitatScene extends Phaser.Scene {
         fontStyle: 'bold',
         backgroundColor: '#0f172a',
         padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0.5);
+
+    // Active Run Buff Text
+    this.runBuffText = this.add
+      .text(width / 2 - 230, height / 2 + 175, '', {
+        fontSize: '12px',
+        color: '#ffbe0b',
+        fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
@@ -201,10 +239,15 @@ export class HabitatScene extends Phaser.Scene {
       }
     });
 
-    // Interactive Care Buttons
-    this.createButton(width / 2 - 320, height - 60, 'FEED 🍖', 0x38b000, () => this.feedPet());
-    this.createButton(width / 2 - 160, height - 60, 'PET ❤️', 0x7209b7, () => this.petCreature());
-    this.createButton(width / 2, height - 60, 'DEFENSE ⚔️', 0xf72585, () =>
+    // Interactive Care & Shop Buttons
+    this.createButton(width / 2 - 340, height - 60, 'FEED 🍖', 0x38b000, () =>
+      this.feedPet('basic_kibble'),
+    );
+    this.createButton(width / 2 - 210, height - 60, 'PET ❤️', 0x7209b7, () => this.petCreature());
+    this.createButton(width / 2 - 80, height - 60, 'FOOD SHOP 🛒', 0x0284c7, () =>
+      this.openShopModal(),
+    );
+    this.createButton(width / 2 + 50, height - 60, 'DEFENSE ⚔️', 0xf72585, () =>
       this.openMapSelectionModal(),
     );
 
@@ -221,6 +264,7 @@ export class HabitatScene extends Phaser.Scene {
     this.devModalContainer = this.add.container(0, 0).setDepth(300).setVisible(false);
     this.tutorialContainer = this.add.container(0, 0).setDepth(400).setVisible(false);
     this.mapSelectContainer = this.add.container(0, 0).setDepth(500).setVisible(false);
+    this.shopModalContainer = this.add.container(0, 0).setDepth(600).setVisible(false);
 
     // Setup Equipment Panel
     this.setupEquipmentPanel(width, height);
@@ -263,6 +307,88 @@ export class HabitatScene extends Phaser.Scene {
     });
   }
 
+  private openShopModal(): void {
+    const { width, height } = this.scale;
+    this.shopModalContainer.removeAll(true);
+    this.shopModalContainer.setVisible(true);
+
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
+    const box = this.add
+      .rectangle(width / 2, height / 2, 540, 380, 0x1e293b)
+      .setStrokeStyle(3, 0x0284c7);
+
+    const title = this.add
+      .text(width / 2, height / 2 - 150, 'PET FOOD SHOP 🛒', {
+        fontSize: '24px',
+        color: '#ffbe0b',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    const shopItems = Object.values(FOOD_DATA);
+    shopItems.forEach((food, idx) => {
+      const cardY = height / 2 - 70 + idx * 85;
+
+      const bg = this.add
+        .rectangle(width / 2, cardY, 480, 75, 0x0f172a)
+        .setStrokeStyle(1, 0x334155);
+
+      const nameTxt = this.add.text(width / 2 - 220, cardY - 20, food.name, {
+        fontSize: '16px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      });
+
+      const descTxt = this.add.text(width / 2 - 220, cardY + 4, food.description, {
+        fontSize: '11px',
+        color: '#cbd5e1',
+      });
+
+      const ownedCount = this.foodInventory[food.id] || 0;
+      const buyBtn = this.add
+        .rectangle(width / 2 + 170, cardY, 90, 36, 0x16a34a)
+        .setInteractive({ useHandCursor: true });
+      const buyTxt = this.add
+        .text(width / 2 + 170, cardY, `BUY ${food.price}g\n(Owned: ${ownedCount})`, {
+          fontSize: '10px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+          align: 'center',
+        })
+        .setOrigin(0.5);
+
+      buyBtn.on('pointerdown', () => {
+        if (this.totalCoins >= food.price) {
+          this.totalCoins -= food.price;
+          this.foodInventory[food.id] = (this.foodInventory[food.id] || 0) + 1;
+          soundEngine.playCoinSound();
+          this.persistState();
+          this.openShopModal();
+          this.updateCareUI();
+        } else {
+          this.showFloatingText(width / 2 + 170, cardY, 'Not enough coins!', '#ff0054');
+        }
+      });
+
+      this.shopModalContainer.add([bg, nameTxt, descTxt, buyBtn, buyTxt]);
+    });
+
+    const closeBtn = this.add
+      .rectangle(width / 2, height / 2 + 145, 140, 36, 0x475569)
+      .setInteractive({ useHandCursor: true });
+    const closeTxt = this.add
+      .text(width / 2, height / 2 + 145, 'CLOSE', {
+        fontSize: '13px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    closeBtn.on('pointerdown', () => this.shopModalContainer.setVisible(false));
+
+    this.shopModalContainer.add([overlay, box, title, closeBtn, closeTxt]);
+  }
+
   private openMapSelectionModal(): void {
     const { width, height } = this.scale;
     this.mapSelectContainer.removeAll(true);
@@ -272,7 +398,6 @@ export class HabitatScene extends Phaser.Scene {
     let currentIndex = mapKeys.indexOf(this.selectedMapId);
     if (currentIndex < 0) currentIndex = 0;
 
-    // 1. Add Overlay & Modal Box FIRST (Fixes Z-Ordering issue)
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
     const box = this.add
       .rectangle(width / 2, height / 2, 580, 420, 0x1e293b)
@@ -288,7 +413,6 @@ export class HabitatScene extends Phaser.Scene {
 
     this.mapSelectContainer.add([overlay, box, title]);
 
-    // 2. Render Current Map Card & Visual Path Preview
     const currentMapKey = mapKeys[currentIndex];
     const mapConfig = MAPS_DATA[currentMapKey];
     this.selectedMapId = currentMapKey;
@@ -314,7 +438,6 @@ export class HabitatScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // 3. Mini Path Map Preview Graphics (Visual Preview)
     const previewW = 380;
     const previewH = 180;
     const previewX = width / 2;
@@ -330,7 +453,6 @@ export class HabitatScene extends Phaser.Scene {
     const offsetX = previewX - previewW / 2;
     const offsetY = previewY - previewH / 2;
 
-    // Draw Primary Path Track
     previewGfx.lineStyle(6, 0x38b000, 0.9);
     previewGfx.beginPath();
     const p0 = mapConfig.waypoints[0];
@@ -341,7 +463,6 @@ export class HabitatScene extends Phaser.Scene {
     }
     previewGfx.strokePath();
 
-    // Draw Secondary Path Track (if dual path)
     if (mapConfig.secondaryWaypoints && mapConfig.secondaryWaypoints.length > 0) {
       previewGfx.lineStyle(6, 0xf72585, 0.9);
       previewGfx.beginPath();
@@ -354,12 +475,10 @@ export class HabitatScene extends Phaser.Scene {
       previewGfx.strokePath();
     }
 
-    // Draw Tower Icon on Mini Map
     const tw = mapConfig.towerPosition;
     previewGfx.fillStyle(0xffbe0b, 1);
     previewGfx.fillCircle(offsetX + tw.x * scaleX, offsetY + tw.y * scaleY, 8);
 
-    // 4. Navigation Buttons (PREV `<` and NEXT `>`)
     const prevBtn = this.add
       .rectangle(width / 2 - 245, previewY, 44, 80, 0x334155)
       .setStrokeStyle(2, 0x475569)
@@ -396,7 +515,6 @@ export class HabitatScene extends Phaser.Scene {
       this.openMapSelectionModal();
     });
 
-    // 5. Start Defense Run Button
     const startBtn = this.add
       .rectangle(width / 2, height / 2 + 150, 220, 44, 0xf72585)
       .setInteractive({ useHandCursor: true });
@@ -413,7 +531,6 @@ export class HabitatScene extends Phaser.Scene {
       this.startDefenseRun();
     });
 
-    // Close Button
     const closeBtn = this.add
       .rectangle(width / 2 + 245, height / 2 - 170, 30, 30, 0xef4444)
       .setInteractive({ useHandCursor: true });
@@ -467,7 +584,7 @@ export class HabitatScene extends Phaser.Scene {
         height / 2 - 20,
         `1. SELECT between 3 Creature Roles (Guardian, Spark, Prowler)!\n` +
           `2. FEED & PET to maintain High Care for Combat Multipliers!\n` +
-          `3. EQUIP collars, clear 5 defense waves, and earn EXP to LEVEL UP!\n` +
+          `3. EQUIP collars, charms & toys, clear waves, and LEVEL UP!\n` +
           `4. Reach Level 5 to EVOLVE your creature into Stage 2!`,
         {
           fontSize: '14px',
@@ -617,7 +734,7 @@ export class HabitatScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.equipStatusText = this.add.text(panelX - 130, panelY - panelH / 2 + 65, 'Equipped: None', {
-      fontSize: '15px',
+      fontSize: '12px',
       color: '#ffffff',
       fontStyle: 'bold',
     });
@@ -631,40 +748,47 @@ export class HabitatScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const panelX = width - 340;
-    const startY = height / 2 - 140;
+    const startY = height / 2 - 130;
 
-    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    const equippedItem = EquipmentEngine.getEquippedItem(legacyProfile);
-    if (equippedItem) {
-      this.equipStatusText.setText(`Equipped: ${equippedItem.name}`);
+    const equipped = EquipmentEngine.getEquippedItems(this.activeCreature);
+    const slots: EquipmentSlot[] = ['collar', 'charm', 'toy'];
 
-      const unequipBtn = this.add
-        .rectangle(panelX + 90, height / 2 - 195, 80, 26, 0xef4444)
-        .setInteractive({ useHandCursor: true });
-      const unequipTxt = this.add
-        .text(panelX + 90, height / 2 - 195, 'UNEQUIP', {
-          fontSize: '11px',
-          color: '#ffffff',
-          fontStyle: 'bold',
-        })
-        .setOrigin(0.5);
+    let equippedStatusStr = '';
+    slots.forEach((s) => {
+      const item = equipped[s];
+      equippedStatusStr += `${s.toUpperCase()}: ${item ? item.name : 'Empty'}\n`;
+    });
+    this.equipStatusText.setText(equippedStatusStr);
 
-      unequipBtn.on('pointerdown', () => {
-        EquipmentEngine.unequipItem(legacyProfile, this.inventory);
-        this.activeCreature.equippedItems.accessory = legacyProfile.equippedItemId;
-        this.persistState();
-        this.renderInventoryList();
-        this.updateCareUI();
-      });
+    // Render Unequip Buttons for 3 slots
+    slots.forEach((s, idx) => {
+      const item = equipped[s];
+      if (item) {
+        const unequipBtn = this.add
+          .rectangle(panelX + 90, height / 2 - 210 + idx * 24, 75, 20, 0xef4444)
+          .setInteractive({ useHandCursor: true });
+        const unequipTxt = this.add
+          .text(panelX + 90, height / 2 - 210 + idx * 24, `UN-${s.toUpperCase()}`, {
+            fontSize: '9px',
+            color: '#ffffff',
+            fontStyle: 'bold',
+          })
+          .setOrigin(0.5);
 
-      this.inventoryContainer.add([unequipBtn, unequipTxt]);
-    } else {
-      this.equipStatusText.setText('Equipped: None');
-    }
+        unequipBtn.on('pointerdown', () => {
+          EquipmentEngine.unequipItem(this.activeCreature, this.inventory, s);
+          this.persistState();
+          this.renderInventoryList();
+          this.updateCareUI();
+        });
+
+        this.inventoryContainer.add([unequipBtn, unequipTxt]);
+      }
+    });
 
     if (this.inventory.length === 0) {
       const emptyText = this.add
-        .text(panelX, startY + 40, 'Inventory Empty\n(Defeat enemies in Defense run)', {
+        .text(panelX, startY + 50, 'Inventory Empty\n(Defeat enemies in Defense run)', {
           fontSize: '13px',
           color: '#64748b',
           align: 'center',
@@ -678,40 +802,68 @@ export class HabitatScene extends Phaser.Scene {
       const itemConfig = EQUIPMENT_DATA[itemId];
       if (!itemConfig) return;
 
-      const itemY = startY + idx * 75;
+      const itemY = startY + idx * 70;
 
       const itemBg = this.add
-        .rectangle(panelX, itemY, 270, 65, 0x1e293b)
+        .rectangle(panelX, itemY, 270, 60, 0x1e293b)
         .setStrokeStyle(1, 0x475569);
-      const nameTxt = this.add.text(panelX - 120, itemY - 20, itemConfig.name, {
-        fontSize: '14px',
-        color: '#f8fafc',
-        fontStyle: 'bold',
-      });
+      const nameTxt = this.add.text(
+        panelX - 120,
+        itemY - 18,
+        `${itemConfig.name} [${itemConfig.slot.toUpperCase()}]`,
+        {
+          fontSize: '13px',
+          color: '#f8fafc',
+          fontStyle: 'bold',
+        },
+      );
       const descTxt = this.add.text(panelX - 120, itemY + 2, itemConfig.description, {
-        fontSize: '11px',
+        fontSize: '10px',
         color: '#94a3b8',
       });
+
+      // EQUIP Button
       const equipBtn = this.add
-        .rectangle(panelX + 90, itemY, 65, 28, 0x3b82f6)
+        .rectangle(panelX + 55, itemY, 55, 26, 0x3b82f6)
         .setInteractive({ useHandCursor: true });
       const btnTxt = this.add
-        .text(panelX + 90, itemY, 'EQUIP', {
-          fontSize: '11px',
+        .text(panelX + 55, itemY, 'EQUIP', {
+          fontSize: '10px',
           color: '#ffffff',
           fontStyle: 'bold',
         })
         .setOrigin(0.5);
 
       equipBtn.on('pointerdown', () => {
-        EquipmentEngine.equipItem(legacyProfile, this.inventory, itemId);
-        this.activeCreature.equippedItems.accessory = legacyProfile.equippedItemId;
+        EquipmentEngine.equipItem(this.activeCreature, this.inventory, itemId);
         this.persistState();
         this.renderInventoryList();
         this.updateCareUI();
       });
 
-      this.inventoryContainer.add([itemBg, nameTxt, descTxt, equipBtn, btnTxt]);
+      // SELL Button (+Coins)
+      const sellBtn = this.add
+        .rectangle(panelX + 115, itemY, 50, 26, 0xd97706)
+        .setInteractive({ useHandCursor: true });
+      const sellTxt = this.add
+        .text(panelX + 115, itemY, `SELL\n${itemConfig.sellValue}g`, {
+          fontSize: '9px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+          align: 'center',
+        })
+        .setOrigin(0.5);
+
+      sellBtn.on('pointerdown', () => {
+        const value = EquipmentEngine.sellItem(this.inventory, itemId);
+        this.totalCoins += value;
+        soundEngine.playCoinSound();
+        this.persistState();
+        this.renderInventoryList();
+        this.updateCareUI();
+      });
+
+      this.inventoryContainer.add([itemBg, nameTxt, descTxt, equipBtn, btnTxt, sellBtn, sellTxt]);
     });
   }
 
@@ -723,9 +875,38 @@ export class HabitatScene extends Phaser.Scene {
     this.updateCareUI();
   }
 
-  private feedPet(): void {
+  private feedPet(foodId: string = 'basic_kibble'): void {
+    const foodConfig = FOOD_DATA[foodId] || FOOD_DATA.basic_kibble;
+    const ownedCount = this.foodInventory[foodId] || 0;
+
+    if (ownedCount <= 0) {
+      this.showFloatingText(
+        this.petSprite.x,
+        this.petSprite.y - 40,
+        `No ${foodConfig.name}! Buy in Shop`,
+        '#ff0054',
+      );
+      return;
+    }
+
+    this.foodInventory[foodId]--;
     const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    PetCareEngine.feedPet(legacyProfile, 25);
+
+    PetCareEngine.feedPet(legacyProfile, foodConfig.fullnessRestore);
+    if (foodConfig.affectionRestore > 0) {
+      this.activeCreature.affection = Math.min(
+        100,
+        this.activeCreature.affection + foodConfig.affectionRestore,
+      );
+    }
+
+    if (foodConfig.buffEffect) {
+      this.activeNextRunBuff = {
+        type: foodConfig.buffEffect.type,
+        multiplier: foodConfig.buffEffect.multiplier,
+      };
+    }
+
     this.activeCreature.fullness = 100 - legacyProfile.hunger;
     this.persistState();
     soundEngine.playFeedSound();
@@ -740,15 +921,22 @@ export class HabitatScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
     });
 
-    this.showFloatingText(this.petSprite.x, this.petSprite.y - 40, '🍖 Hunger -25', '#38b000');
+    this.showFloatingText(
+      this.petSprite.x,
+      this.petSprite.y - 40,
+      `🍖 Fed ${foodConfig.name}`,
+      '#38b000',
+    );
     this.updateCareUI();
   }
 
   private petCreature(): void {
     const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    PetCareEngine.petCreature(legacyProfile, 10);
+    const petResult = PetCareEngine.petCreature(legacyProfile, 10);
     this.activeCreature.affection = legacyProfile.affection;
+    this.currentPetMood = petResult.mood;
     this.persistState();
+
     soundEngine.playPetSound();
     eventBus.emit('PET_PETTED', { affection: legacyProfile.affection });
 
@@ -761,7 +949,14 @@ export class HabitatScene extends Phaser.Scene {
       ease: 'Back.easeOut',
     });
 
-    this.showFloatingText(this.petSprite.x, this.petSprite.y - 40, '❤️ Affection +10', '#f72585');
+    const moodColor =
+      petResult.mood === 'Happy' ? '#f72585' : petResult.mood === 'Neutral' ? '#ffbe0b' : '#ff0054';
+    this.showFloatingText(
+      this.petSprite.x,
+      this.petSprite.y - 40,
+      `❤️ +${petResult.gainedAffection} (${petResult.mood})`,
+      moodColor,
+    );
     this.updateCareUI();
   }
 
@@ -797,7 +992,7 @@ export class HabitatScene extends Phaser.Scene {
     this.hungerBar.fillRect(xLeft, y, barWidth, barHeight);
     this.hungerBar.fillStyle(hunger > 30 ? 0x38b000 : 0xff0054, 1);
     this.hungerBar.fillRect(xLeft, y, barWidth * (hunger / 100), barHeight);
-    this.hungerText.setText(`Hunger: ${Math.round(hunger)}/100`);
+    this.hungerText.setText(`Fullness: ${Math.round(100 - hunger)}/100`);
 
     this.affectionBar.clear();
     this.affectionBar.fillStyle(0x0f172a, 0.8);
@@ -806,8 +1001,11 @@ export class HabitatScene extends Phaser.Scene {
     this.affectionBar.fillRect(xRight, y, barWidth * (affection / 100), barHeight);
     this.affectionText.setText(`Affection: ${Math.round(affection)}/100`);
 
+    this.moodText.setText(`Mood: ${this.currentPetMood}`);
+
     const careBonus = PetCareEngine.calculateCareBonus(legacyProfile);
-    const effectiveStats = EquipmentEngine.getEffectiveStats(legacyProfile);
+    const baseStats = CreatureEngine.getEffectiveStats(this.activeCreature);
+    const effectiveStats = EquipmentEngine.getEffectiveStats(this.activeCreature, baseStats);
 
     const finalDamage = Math.round(effectiveStats.attackDamage * careBonus.damageMultiplier);
     const finalSpeed = (effectiveStats.attackSpeed * careBonus.speedMultiplier).toFixed(2);
@@ -817,6 +1015,14 @@ export class HabitatScene extends Phaser.Scene {
       `Combat Stats: Atk ${finalDamage} | Spd ${finalSpeed}/s | HP ${finalHp}`,
     );
 
+    if (this.activeNextRunBuff) {
+      const buffLabel =
+        this.activeNextRunBuff.type === 'exp_buff' ? '+10% EXP Buff' : '+15% Speed Buff';
+      this.runBuffText.setText(`⚡ Next Run Buff Active: ${buffLabel}`);
+    } else {
+      this.runBuffText.setText('');
+    }
+
     this.evolveBtnContainer.setVisible(CreatureEngine.canEvolve(this.activeCreature));
     this.coinsText.setText(`Coins: ${this.totalCoins}`);
   }
@@ -825,12 +1031,18 @@ export class HabitatScene extends Phaser.Scene {
     soundEngine.playAttackSound();
     const legacyProfile = this.getProfileFromOwned(this.activeCreature);
     const careBonus = PetCareEngine.calculateCareBonus(legacyProfile);
-    const effectiveStats = EquipmentEngine.getEffectiveStats(legacyProfile);
+    const baseStats = CreatureEngine.getEffectiveStats(this.activeCreature);
+    const effectiveStats = EquipmentEngine.getEffectiveStats(this.activeCreature, baseStats);
+
+    let speedMult = careBonus.speedMultiplier;
+    if (this.activeNextRunBuff?.type === 'speed_buff') {
+      speedMult *= this.activeNextRunBuff.multiplier;
+    }
 
     const modifiedStats = {
       ...effectiveStats,
       attackDamage: effectiveStats.attackDamage * careBonus.damageMultiplier,
-      attackSpeed: effectiveStats.attackSpeed * careBonus.speedMultiplier,
+      attackSpeed: effectiveStats.attackSpeed * speedMult,
       maxHp: effectiveStats.maxHp * careBonus.hpMultiplier,
     };
 
@@ -849,11 +1061,11 @@ export class HabitatScene extends Phaser.Scene {
   ): void {
     const container = this.add.container(x, y);
     const bg = this.add
-      .rectangle(0, 0, 130, 44, bgColor, 1)
+      .rectangle(0, 0, 120, 44, bgColor, 1)
       .setInteractive({ useHandCursor: true });
     const txt = this.add
       .text(0, 0, label, {
-        fontSize: '12px',
+        fontSize: '11px',
         color: '#ffffff',
         fontStyle: 'bold',
       })

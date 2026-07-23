@@ -6,7 +6,12 @@ export interface CareBonus {
   hpMultiplier: number;
 }
 
+export type PetMood = 'Happy' | 'Neutral' | 'Tired';
+
 export class PetCareEngine {
+  private static lastPetTimestamp: number = 0;
+  private static rapidPetCount: number = 0;
+
   /**
    * Consumes food to reduce hunger and slightly boost affection
    */
@@ -24,7 +29,7 @@ export class PetCareEngine {
   }
 
   /**
-   * Tapping/petting creature to boost affection
+   * Tapping/petting creature to boost affection with diminishing returns on rapid petting
    */
   public static petCreature(
     profile: PermanentCreatureProfile,
@@ -32,10 +37,48 @@ export class PetCareEngine {
   ): {
     hunger: number;
     affection: number;
+    mood: PetMood;
+    gainedAffection: number;
   } {
-    profile.affection = Math.min(100, Math.max(0, profile.affection + amount));
-    profile.lastCareTimestamp = Date.now();
-    return { hunger: profile.hunger, affection: profile.affection };
+    const now = Date.now();
+    const elapsedSinceLastPet = (now - this.lastPetTimestamp) / 1000;
+    this.lastPetTimestamp = now;
+
+    if (elapsedSinceLastPet < 3.0) {
+      this.rapidPetCount++;
+    } else {
+      this.rapidPetCount = 0;
+    }
+
+    let multiplier = 1.0;
+    let mood: PetMood = 'Happy';
+
+    if (this.rapidPetCount >= 2) {
+      multiplier = 0.2;
+      mood = 'Tired';
+    } else if (this.rapidPetCount >= 1) {
+      multiplier = 0.5;
+      mood = 'Neutral';
+    }
+
+    const gainedAffection = Math.max(1, Math.round(amount * multiplier));
+    profile.affection = Math.min(100, Math.max(0, profile.affection + gainedAffection));
+    profile.lastCareTimestamp = now;
+
+    return {
+      hunger: profile.hunger,
+      affection: profile.affection,
+      mood,
+      gainedAffection,
+    };
+  }
+
+  /**
+   * Resets petting cooldown state
+   */
+  public static resetPettingCooldown(): void {
+    this.rapidPetCount = 0;
+    this.lastPetTimestamp = 0;
   }
 
   /**
