@@ -5,6 +5,7 @@ export class SoundEngine {
   private static instance: SoundEngine;
   private ctx: AudioContext | null = null;
   private muted: boolean = false;
+  private volume: number = 1.0; // 0.0 to 1.0
 
   private constructor() {
     // Lazy AudioContext initialization on first user gesture
@@ -41,11 +42,23 @@ export class SoundEngine {
     return this.muted;
   }
 
+  public setVolume(vol: number): void {
+    this.volume = Math.max(0, Math.min(1.0, vol));
+  }
+
+  public getVolume(): number {
+    return this.volume;
+  }
+
+  private getEffectiveGain(baseGain: number): number {
+    return baseGain * this.volume;
+  }
+
   /**
    * Cute rising tone for feeding pet
    */
   public playFeedSound(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -57,7 +70,8 @@ export class SoundEngine {
     osc.frequency.setValueAtTime(350, now);
     osc.frequency.exponentialRampToValueAtTime(700, now + 0.15);
 
-    gain.gain.setValueAtTime(0.15, now);
+    const effGain = this.getEffectiveGain(0.15);
+    gain.gain.setValueAtTime(effGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
     osc.connect(gain);
@@ -71,7 +85,7 @@ export class SoundEngine {
    * Soft boop/purr tone for petting creature
    */
   public playPetSound(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -83,7 +97,8 @@ export class SoundEngine {
     osc.frequency.setValueAtTime(520, now);
     osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
 
-    gain.gain.setValueAtTime(0.12, now);
+    const effGain = this.getEffectiveGain(0.12);
+    gain.gain.setValueAtTime(effGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
     osc.connect(gain);
@@ -97,7 +112,7 @@ export class SoundEngine {
    * Laser attack zap sound
    */
   public playAttackSound(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -109,7 +124,8 @@ export class SoundEngine {
     osc.frequency.setValueAtTime(800, now);
     osc.frequency.exponentialRampToValueAtTime(200, now + 0.08);
 
-    gain.gain.setValueAtTime(0.1, now);
+    const effGain = this.getEffectiveGain(0.1);
+    gain.gain.setValueAtTime(effGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     osc.connect(gain);
@@ -123,7 +139,7 @@ export class SoundEngine {
    * Coin pickup chime
    */
   public playCoinSound(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -138,7 +154,8 @@ export class SoundEngine {
       const startTime = now + idx * 0.06;
       osc.frequency.setValueAtTime(freq, startTime);
 
-      gain.gain.setValueAtTime(0.1, startTime);
+      const effGain = this.getEffectiveGain(0.1);
+      gain.gain.setValueAtTime(effGain, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
 
       osc.connect(gain);
@@ -153,7 +170,7 @@ export class SoundEngine {
    * Impact thud for enemy hit / tower damage
    */
   public playHitSound(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -165,7 +182,8 @@ export class SoundEngine {
     osc.frequency.setValueAtTime(150, now);
     osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
 
-    gain.gain.setValueAtTime(0.15, now);
+    const effGain = this.getEffectiveGain(0.15);
+    gain.gain.setValueAtTime(effGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
 
     osc.connect(gain);
@@ -179,7 +197,7 @@ export class SoundEngine {
    * Victory Arpeggio Fanfare
    */
   public playVictoryFanfare(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -194,7 +212,8 @@ export class SoundEngine {
       const startTime = now + idx * 0.1;
       osc.frequency.setValueAtTime(freq, startTime);
 
-      gain.gain.setValueAtTime(0.15, startTime);
+      const effGain = this.getEffectiveGain(0.15);
+      gain.gain.setValueAtTime(effGain, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
 
       osc.connect(gain);
@@ -209,7 +228,7 @@ export class SoundEngine {
    * Defeat descending tone
    */
   public playDefeatSound(): void {
-    if (this.muted) return;
+    if (this.muted || this.volume <= 0) return;
     const ctx = this.initCtx();
     if (!ctx) return;
 
@@ -221,7 +240,8 @@ export class SoundEngine {
     osc.frequency.setValueAtTime(300, now);
     osc.frequency.exponentialRampToValueAtTime(80, now + 0.5);
 
-    gain.gain.setValueAtTime(0.2, now);
+    const effGain = this.getEffectiveGain(0.2);
+    gain.gain.setValueAtTime(effGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
     osc.connect(gain);

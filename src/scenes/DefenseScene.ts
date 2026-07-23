@@ -12,6 +12,7 @@ import { EquipmentConfig } from '../types/equipment';
 import { TraitConfig } from '../types/trait';
 import { runRewardSettlementService } from '../core/services/RunRewardSettlementService';
 import { soundEngine } from '../core/audio/SoundEngine';
+import { settingsEngine } from '../core/settings/SettingsEngine';
 import { WaveConfig } from '../types/wave';
 
 export class DefenseScene extends Phaser.Scene {
@@ -20,6 +21,7 @@ export class DefenseScene extends Phaser.Scene {
   private petStats: CreatureStats = DEFAULT_CREATURE_STATS;
   private selectedMapId: string = 'heartwood_clearing';
   private waveSet: WaveConfig[] = WAVES_DATA_MAP1;
+  private currentTraitOffers: TraitConfig[] = [];
 
   private enemySprites: Map<
     string,
@@ -217,6 +219,29 @@ export class DefenseScene extends Phaser.Scene {
       this.scene.start('HabitatScene');
     });
 
+    // Keyboard Shortcuts (Space to Pause, 1-3 to select traits, R to reroll)
+    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+      if (event.code === 'Space' || event.code === 'KeyP') {
+        const isPaused = this.combatEngine.togglePause();
+        this.pauseBtnText.setText(isPaused ? '▶️ PLAY' : '⏸️ PAUSE');
+        this.bannerText.setText(isPaused ? 'GAME PAUSED' : '');
+      } else if (this.traitModalContainer.visible && this.currentTraitOffers.length > 0) {
+        if (event.code === 'Digit1' && this.currentTraitOffers[0]) {
+          this.selectTraitByShortcut(0);
+        } else if (event.code === 'Digit2' && this.currentTraitOffers[1]) {
+          this.selectTraitByShortcut(1);
+        } else if (event.code === 'Digit3' && this.currentTraitOffers[2]) {
+          this.selectTraitByShortcut(2);
+        } else if (event.code === 'KeyR' && this.runState.rerollsRemaining > 0) {
+          const newOffers = this.combatEngine.rerollTraitOffers();
+          if (newOffers) {
+            soundEngine.playCoinSound();
+            this.renderTraitCards(newOffers, width, height);
+          }
+        }
+      }
+    });
+
     // Containers for Modals
     this.traitModalContainer = this.add.container(0, 0).setDepth(100).setVisible(false);
     this.resultsModalContainer = this.add.container(0, 0).setDepth(200).setVisible(false);
@@ -226,6 +251,20 @@ export class DefenseScene extends Phaser.Scene {
 
     // Start Wave 1
     this.combatEngine.startWave(this.waveSet[0]);
+  }
+
+  private selectTraitByShortcut(index: number): void {
+    const trait = this.currentTraitOffers[index];
+    if (!trait) return;
+
+    soundEngine.playCoinSound();
+    this.combatEngine.selectTraitOffer(trait);
+    this.updateBuildHud();
+    this.traitModalContainer.setVisible(false);
+    phaseManager.setPhase(GamePhase.DEFENSE);
+
+    const nextWaveIndex = this.runState.currentWave;
+    this.combatEngine.startWave(this.waveSet[nextWaveIndex]);
   }
 
   private setupEventListeners(): void {
@@ -286,7 +325,9 @@ export class DefenseScene extends Phaser.Scene {
   private onBossPhaseChanged = (data: unknown): void => {
     const { name } = data as { name: string; phase: number };
     soundEngine.playHitSound();
-    this.cameras.main.shake(300, 0.015);
+    if (settingsEngine.isScreenShakeEnabled()) {
+      this.cameras.main.shake(300, 0.015);
+    }
     this.bannerText.setText(`⚡ ${name.toUpperCase()} ENRAGED! (PHASE 2)`);
     this.bannerText.setColor('#f72585');
     this.time.delayedCall(2000, () => this.bannerText.setText(''));
@@ -441,7 +482,9 @@ export class DefenseScene extends Phaser.Scene {
     const { currentHp, maxHp } = data as { currentHp: number; maxHp: number };
     soundEngine.playHitSound();
     this.towerHpText.setText(`Tower HP: ${currentHp}/${maxHp}`);
-    this.cameras.main.shake(150, 0.008);
+    if (settingsEngine.isScreenShakeEnabled()) {
+      this.cameras.main.shake(150, 0.008);
+    }
   };
 
   private onWaveStarted = (data: unknown): void => {
@@ -477,13 +520,14 @@ export class DefenseScene extends Phaser.Scene {
   }
 
   private renderTraitCards(offers: TraitConfig[], width: number, height: number): void {
+    this.currentTraitOffers = offers;
     this.traitModalContainer.removeAll(true);
     this.traitModalContainer.setVisible(true);
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75);
     const modalTitle = this.add
-      .text(width / 2, 90, 'CHOOSE A TRAIT UPGRADE', {
-        fontSize: '26px',
+      .text(width / 2, 90, 'CHOOSE A TRAIT UPGRADE (Keys: 1, 2, 3)', {
+        fontSize: '24px',
         color: '#ffbe0b',
         fontStyle: 'bold',
       })
@@ -492,11 +536,11 @@ export class DefenseScene extends Phaser.Scene {
     // Reroll Button
     const canReroll = this.runState.rerollsRemaining > 0;
     const rerollBtn = this.add
-      .rectangle(width / 2, 135, 160, 32, canReroll ? 0x0284c7 : 0x475569)
+      .rectangle(width / 2, 135, 180, 34, canReroll ? 0x0284c7 : 0x475569)
       .setInteractive({ useHandCursor: canReroll });
 
     const rerollTxt = this.add
-      .text(width / 2, 135, `🎲 REROLL (${this.runState.rerollsRemaining})`, {
+      .text(width / 2, 135, `🎲 REROLL (Key R) [${this.runState.rerollsRemaining}]`, {
         fontSize: '12px',
         color: '#ffffff',
         fontStyle: 'bold',
@@ -531,7 +575,7 @@ export class DefenseScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
 
       const title = this.add
-        .text(cardX, cardY - 80, trait.name, {
+        .text(cardX, cardY - 80, `[${i + 1}] ${trait.name}`, {
           fontSize: '17px',
           color: '#ffffff',
           fontStyle: 'bold',
@@ -561,7 +605,7 @@ export class DefenseScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
 
       const btnTxt = this.add
-        .text(cardX, cardY + 80, 'SELECT', {
+        .text(cardX, cardY + 80, `SELECT [${i + 1}]`, {
           fontSize: '14px',
           color: '#ffffff',
           fontStyle: 'bold',

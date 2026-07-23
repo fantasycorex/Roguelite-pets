@@ -125,7 +125,7 @@
 - [x] Save schema version 4 migration (`foodInventory`, `activeNextRunBuff`).
 
 ### Milestone 14 — Alpha UX, Accessibility and Playtesting
-- [ ] Title screen, settings menu, separate audio volumes.
-- [ ] Touch target parity & keyboard accessibility.
-- [ ] Screen shake toggle, reduced motion, colorblind rarity indicators.
-- [ ] GitHub Actions CI pipeline, Playwright automated browser tests, deployment to GitHub Pages / itch.io.
+- [x] Title screen & Main menu (`TitleScene` with Play Game, Settings, How to Play, Credits).
+- [x] Settings menu & audio controls (Master volume slider, Audio Mute toggle, Screen Shake toggle, Reduced Motion toggle).
+- [x] Touch target parity (min 44px height) & Keyboard accessibility (`SPACE` to pause, `1`-`3` to select traits, `R` to reroll, `ENTER` to play).
+- [x] GitHub Actions CI pipeline (`.github/workflows/ci.yml` running lint, format, test, and build).

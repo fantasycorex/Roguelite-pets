@@ -10,7 +10,7 @@ export class PreloadScene extends Phaser.Scene {
     // Generate placeholder textures dynamically
     TextureGenerator.generatePlaceholders(this);
 
-    // Transition directly to Habitat Scene
-    this.scene.start('HabitatScene');
+    // Transition to Title Scene
+    this.scene.start('TitleScene');
   }
 }

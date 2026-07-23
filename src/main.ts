@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { PreloadScene } from './scenes/PreloadScene';
+import { TitleScene } from './scenes/TitleScene';
 import { HabitatScene } from './scenes/HabitatScene';
 import { DefenseScene } from './scenes/DefenseScene';
 
@@ -21,7 +22,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, PreloadScene, HabitatScene, DefenseScene],
+  scene: [BootScene, PreloadScene, TitleScene, HabitatScene, DefenseScene],
 };
 
 window.addEventListener('load', () => {
