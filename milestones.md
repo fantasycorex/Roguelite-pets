@@ -149,9 +149,11 @@
 - [x] End-to-end integration test (`tests/full_run_integration.test.ts`) covering `HabitatScene` -> `DefenseScene` -> `Results` -> `SaveManager`.
 
 ### Milestone 16 — Architecture Refactor and Content Validation
-- [ ] Extract feature controllers and UI components (`HabitatController`, `CarePanel`, `RunController`, `CombatHUD`, etc.).
-- [ ] Implement services (`CareService`, `ShopService`, `RunPreparationService`, `InventoryService`, `EvolutionService`, `SettingsCoordinator`).
-- [ ] Implement startup content validator checking all data definitions (species, wave enemies, traits, equipment slots, map waypoints).
+- [x] Extract feature controllers & UI components (`HabitatController`, `RunController`, `CarePanel`, `CreatureRosterPanel`, `FoodShopPanel`, `EquipmentPanel`, `MapSelectionPanel`, `CombatRenderer`, `CombatHUD`, `TraitDraftPanel`, `BossPresentation`, `ResultsPanel`).
+- [x] Add domain services (`CareService`, `ShopService`, `RunPreparationService`, `InventoryService`, `EvolutionService`, `SettingsCoordinator`).
+- [x] Implement startup content validation checking all data definitions (`ContentValidationService` in `PreloadScene`).
+- [x] Unit test suites (`tests/content_validation.test.ts` & `tests/services_architecture.test.ts`).
+- [x] Exit condition achieved: Scenes orchestrate input and rendering but do not directly perform economy, progression, or care calculations.
 
 ### Milestone 17 — True Creature Combat Kits
 - [ ] Guardian kit: short-range impact, taunt nearby fighters, protective shield.
