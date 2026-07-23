@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-ssr
+*.local
+npm_install.log
+.DS_Store
+*.log
