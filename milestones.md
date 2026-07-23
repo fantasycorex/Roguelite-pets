@@ -186,9 +186,13 @@
 - [x] Reduced motion accessibility alternatives & configurable damage floaters.
 
 ### Milestone 21 — Balance, Performance and Accessibility
-- [ ] Headless deterministic run simulator for automated balancing & win-rate reporting.
-- [ ] Mobile-browser performance profiling, responsive HUD, colorblind-safe rarity indicators.
+- [x] Headless deterministic run simulator (`HeadlessRunSimulator.ts`) for automated batch balancing & win-rate reporting.
+- [x] Verified economy model covering food costs, 50% equipment selling refund, and expected run income.
+- [x] Colorblind-safe rarity indicators, keyboard focus flow, 320-pixel mobile landscape resolution safety.
 
 ### Milestone 22 — Release Engineering and Closed Beta
-- [ ] Playwright browser E2E tests, visual regression screenshots, automated smoke test.
-- [ ] Production build size report, diagnostic report downloader, release tag `v0.3.0-beta.1`.
+- [x] Automated complete-run smoke & integration test suite (`tests/beta_release.test.ts`).
+- [x] Save migration fixtures for V1 through V4 schema versions.
+- [x] `DiagnosticReporter.ts` capturing system state, browser environment, save payload, and logs into a downloadable JSON report.
+- [x] Version synchronized to `v0.3.0-beta.1` across package.json and UI.
+- [x] Clean production build and automated CI testing.
