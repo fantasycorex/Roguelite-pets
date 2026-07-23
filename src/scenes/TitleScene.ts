@@ -17,6 +17,13 @@ export class TitleScene extends Phaser.Scene {
     phaseManager.setPhase(GamePhase.PREPARATION);
     const { width, height } = this.scale;
 
+    // Sync sound engine from saved settings on boot
+    const settings = settingsEngine.getSettings();
+    soundEngine.setVolume(settings.masterVolume);
+    if (settings.isMuted !== soundEngine.isMuted()) {
+      soundEngine.toggleMute();
+    }
+
     // Deep slate background
     this.add.rectangle(width / 2, height / 2, width, height, 0x0f172a);
 
@@ -60,7 +67,7 @@ export class TitleScene extends Phaser.Scene {
       });
     }
 
-    // Main Action Buttons
+    // Main Action Buttons (Min 48px touch height)
     this.createButton(width / 2, height / 2 + 20, 'PLAY GAME ⚔️', 0xf72585, () => {
       soundEngine.playAttackSound();
       this.scene.start('HabitatScene');
@@ -158,7 +165,7 @@ export class TitleScene extends Phaser.Scene {
         width / 2 + 100,
         height / 2 - 70,
         140,
-        36,
+        44,
         currentSettings.isMuted ? 0xef4444 : 0x16a34a,
       )
       .setInteractive({ useHandCursor: true });
@@ -176,31 +183,31 @@ export class TitleScene extends Phaser.Scene {
       this.openSettingsModal();
     });
 
-    // 2. Master Volume Controls
+    // 2. Master Volume Controls (FIXED string interpolation)
     const volLabel = this.add.text(
       width / 2 - 190,
       height / 2 - 20,
-      `Master Volume: Math.round(${currentSettings.masterVolume * 100})%`,
+      `Master Volume: ${Math.round(currentSettings.masterVolume * 100)}%`,
       { fontSize: '16px', color: '#ffffff' },
     );
 
     const volDownBtn = this.add
-      .rectangle(width / 2 + 50, height / 2 - 10, 44, 32, 0x334155)
+      .rectangle(width / 2 + 50, height / 2 - 10, 44, 44, 0x334155)
       .setInteractive({ useHandCursor: true });
     this.add
       .text(width / 2 + 50, height / 2 - 10, '-', {
-        fontSize: '20px',
+        fontSize: '22px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
 
     const volUpBtn = this.add
-      .rectangle(width / 2 + 130, height / 2 - 10, 44, 32, 0x334155)
+      .rectangle(width / 2 + 130, height / 2 - 10, 44, 44, 0x334155)
       .setInteractive({ useHandCursor: true });
     this.add
       .text(width / 2 + 130, height / 2 - 10, '+', {
-        fontSize: '20px',
+        fontSize: '22px',
         color: '#ffffff',
         fontStyle: 'bold',
       })
@@ -230,7 +237,7 @@ export class TitleScene extends Phaser.Scene {
         width / 2 + 100,
         height / 2 + 50,
         140,
-        36,
+        44,
         currentSettings.screenShakeEnabled ? 0x16a34a : 0x475569,
       )
       .setInteractive({ useHandCursor: true });
@@ -264,7 +271,7 @@ export class TitleScene extends Phaser.Scene {
         width / 2 + 100,
         height / 2 + 110,
         140,
-        36,
+        44,
         currentSettings.reducedMotionEnabled ? 0x9333ea : 0x475569,
       )
       .setInteractive({ useHandCursor: true });
@@ -290,7 +297,7 @@ export class TitleScene extends Phaser.Scene {
 
     // Close Button
     const closeBtn = this.add
-      .rectangle(width / 2, height / 2 + 160, 140, 36, 0x475569)
+      .rectangle(width / 2, height / 2 + 160, 140, 44, 0x475569)
       .setInteractive({ useHandCursor: true });
     const closeTxt = this.add
       .text(width / 2, height / 2 + 160, 'CLOSE', {
@@ -362,7 +369,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const closeBtn = this.add
-      .rectangle(width / 2, height / 2 + 150, 140, 36, 0x475569)
+      .rectangle(width / 2, height / 2 + 150, 140, 44, 0x475569)
       .setInteractive({ useHandCursor: true });
     const closeTxt = this.add
       .text(width / 2, height / 2 + 150, 'GOT IT', {
@@ -400,7 +407,7 @@ export class TitleScene extends Phaser.Scene {
         height / 2 - 10,
         `Framework: Phaser 3 + Vite + TypeScript\n` +
           `Audio: Web Audio API Procedural Synthesizer\n` +
-          `Testing: Vitest (61 Unit Test Suite)\n\n` +
+          `Testing: Vitest (65 Unit Test Suite)\n\n` +
           `Developed by fantasycorex\n` +
           `GitHub Repository: fantasycorex/Roguelite-pets`,
         {
@@ -413,7 +420,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const closeBtn = this.add
-      .rectangle(width / 2, height / 2 + 120, 140, 36, 0x475569)
+      .rectangle(width / 2, height / 2 + 120, 140, 44, 0x475569)
       .setInteractive({ useHandCursor: true });
     const closeTxt = this.add
       .text(width / 2, height / 2 + 120, 'CLOSE', {

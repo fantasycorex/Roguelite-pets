@@ -3,7 +3,7 @@ import { GamePhase } from '../types/phase';
 import { phaseManager } from '../core/state/PhaseManager';
 import { eventBus } from '../core/events/EventBus';
 import { PetCareEngine, PetMood } from '../core/pet/PetCareEngine';
-import { OwnedCreature, PermanentCreatureProfile } from '../types/creature';
+import { OwnedCreature } from '../types/creature';
 import { EquipmentEngine } from '../core/equipment/EquipmentEngine';
 import { EquipmentSlot } from '../types/equipment';
 import { EQUIPMENT_DATA } from '../data/equipment.data';
@@ -81,21 +81,6 @@ export class HabitatScene extends Phaser.Scene {
       tutorialCompleted: this.tutorialCompleted,
       activeNextRunBuff: this.activeNextRunBuff,
     });
-  }
-
-  private getProfileFromOwned(c: OwnedCreature): PermanentCreatureProfile {
-    const effectiveStats = CreatureEngine.getEffectiveStats(c);
-    return {
-      id: c.instanceId,
-      name: c.nickname,
-      level: c.level,
-      currentExp: c.currentExp,
-      hunger: 100 - c.fullness,
-      affection: c.affection,
-      lastCareTimestamp: Date.now(),
-      equippedItemId: null,
-      baseStats: effectiveStats,
-    };
   }
 
   create(): void {
@@ -954,9 +939,7 @@ export class HabitatScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const deltaSeconds = delta / 1000;
-    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    PetCareEngine.updateCareDecay(legacyProfile, deltaSeconds, 0.3);
-    this.activeCreature.fullness = 100 - legacyProfile.hunger;
+    PetCareEngine.updateCareDecay(this.activeCreature, deltaSeconds, 0.3);
     this.updateCareUI();
   }
 
@@ -975,9 +958,7 @@ export class HabitatScene extends Phaser.Scene {
     }
 
     this.foodInventory[foodId]--;
-    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-
-    PetCareEngine.feedPet(legacyProfile, foodConfig.fullnessRestore);
+    PetCareEngine.feedPet(this.activeCreature, foodConfig.fullnessRestore);
     if (foodConfig.affectionRestore > 0) {
       this.activeCreature.affection = Math.min(
         100,
@@ -992,10 +973,9 @@ export class HabitatScene extends Phaser.Scene {
       };
     }
 
-    this.activeCreature.fullness = 100 - legacyProfile.hunger;
     this.persistState();
     soundEngine.playFeedSound();
-    eventBus.emit('PET_FED', { hunger: legacyProfile.hunger });
+    eventBus.emit('PET_FED', { fullness: this.activeCreature.fullness });
 
     this.tweens.add({
       targets: this.petSprite,
@@ -1016,14 +996,12 @@ export class HabitatScene extends Phaser.Scene {
   }
 
   private petCreature(): void {
-    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    const petResult = PetCareEngine.petCreature(legacyProfile, 10);
-    this.activeCreature.affection = legacyProfile.affection;
+    const petResult = PetCareEngine.petCreature(this.activeCreature, 10);
     this.currentPetMood = petResult.mood;
     this.persistState();
 
     soundEngine.playPetSound();
-    eventBus.emit('PET_PETTED', { affection: legacyProfile.affection });
+    eventBus.emit('PET_PETTED', { affection: this.activeCreature.affection });
 
     this.tweens.add({
       targets: this.petSprite,
@@ -1064,8 +1042,7 @@ export class HabitatScene extends Phaser.Scene {
   }
 
   private updateCareUI(): void {
-    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    const { hunger, affection } = legacyProfile;
+    const { fullness, affection } = this.activeCreature;
     const barWidth = 160;
     const barHeight = 14;
     const xLeft = this.scale.width / 2 - 340;
@@ -1075,9 +1052,9 @@ export class HabitatScene extends Phaser.Scene {
     this.hungerBar.clear();
     this.hungerBar.fillStyle(0x0f172a, 0.8);
     this.hungerBar.fillRect(xLeft, y, barWidth, barHeight);
-    this.hungerBar.fillStyle(hunger > 30 ? 0x38b000 : 0xff0054, 1);
-    this.hungerBar.fillRect(xLeft, y, barWidth * (hunger / 100), barHeight);
-    this.hungerText.setText(`Fullness: ${Math.round(100 - hunger)}/100`);
+    this.hungerBar.fillStyle(fullness > 30 ? 0x38b000 : 0xff0054, 1);
+    this.hungerBar.fillRect(xLeft, y, barWidth * (fullness / 100), barHeight);
+    this.hungerText.setText(`Fullness: ${Math.round(fullness)}/100`);
 
     this.affectionBar.clear();
     this.affectionBar.fillStyle(0x0f172a, 0.8);
@@ -1088,7 +1065,7 @@ export class HabitatScene extends Phaser.Scene {
 
     this.moodText.setText(`Mood: ${this.currentPetMood}`);
 
-    const careBonus = PetCareEngine.calculateCareBonus(legacyProfile);
+    const careBonus = PetCareEngine.calculateCareBonus(this.activeCreature);
     const baseStats = CreatureEngine.getEffectiveStats(this.activeCreature);
     const effectiveStats = EquipmentEngine.getEffectiveStats(this.activeCreature, baseStats);
 
@@ -1114,8 +1091,7 @@ export class HabitatScene extends Phaser.Scene {
 
   private startDefenseRun(): void {
     soundEngine.playAttackSound();
-    const legacyProfile = this.getProfileFromOwned(this.activeCreature);
-    const careBonus = PetCareEngine.calculateCareBonus(legacyProfile);
+    const careBonus = PetCareEngine.calculateCareBonus(this.activeCreature);
     const baseStats = CreatureEngine.getEffectiveStats(this.activeCreature);
     const effectiveStats = EquipmentEngine.getEffectiveStats(this.activeCreature, baseStats);
 
@@ -1131,9 +1107,19 @@ export class HabitatScene extends Phaser.Scene {
       maxHp: effectiveStats.maxHp * careBonus.hpMultiplier,
     };
 
+    const nextBuff = this.activeNextRunBuff;
+
+    // Clear active run buff so it is consumed ONCE!
+    this.activeNextRunBuff = undefined;
+    this.persistState();
+
     this.scene.start('DefenseScene', {
       petStats: modifiedStats,
       mapId: this.selectedMapId,
+      speciesId: this.activeCreature.speciesId,
+      fullness: this.activeCreature.fullness,
+      affection: this.activeCreature.affection,
+      activeNextRunBuff: nextBuff,
     });
   }
 

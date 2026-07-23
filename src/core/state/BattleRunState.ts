@@ -3,6 +3,7 @@ import { CreatureStats } from '../../types/creature';
 import { MapConfig, TowerConfig, ActiveStatusEffect, TargetingMode } from '../../types/combat';
 import { MAPS_DATA } from '../../data/maps.data';
 import { TOWERS_DATA } from '../../data/towers.data';
+import { SPECIES_DATA } from '../../data/species.data';
 
 export type EnemyLifecycleState = 'ALIVE' | 'DYING' | 'REMOVED';
 
@@ -33,6 +34,7 @@ export interface ActiveProjectile {
   damage: number;
   progress: number; // 0 to 1
   speed: number;
+  isChain?: boolean;
 }
 
 export class BattleRunState {
@@ -46,6 +48,13 @@ export class BattleRunState {
 
   public towerHp: number = 100;
   public maxTowerHp: number = 100;
+
+  public speciesId: string = 'guardian_blob';
+  public normalAbilityId: string = 'basic_laser';
+  public specialAbilityId: string = 'aoe_pulse';
+
+  public creatureFullness: number = 100;
+  public creatureAffection: number = 100;
 
   public creatureCurrentHp: number = 100;
   public creatureMaxHp: number = 100;
@@ -76,12 +85,27 @@ export class BattleRunState {
   public timeScale: number = 1.0;
   public isPaused: boolean = false;
 
-  constructor(petStats: CreatureStats, mapId: string = 'heartwood_clearing') {
+  constructor(
+    petStats: CreatureStats,
+    mapId: string = 'heartwood_clearing',
+    speciesId: string = 'guardian_blob',
+    fullness: number = 100,
+    affection: number = 100,
+  ) {
     this.petStats = { ...petStats };
     this.creatureMaxHp = petStats.maxHp;
     this.creatureCurrentHp = petStats.maxHp;
     this.selectedMapId = mapId;
     this.mapConfig = MAPS_DATA[mapId] || MAPS_DATA.heartwood_clearing;
+
+    this.speciesId = speciesId;
+    const speciesConfig = SPECIES_DATA[speciesId] || SPECIES_DATA.guardian_blob;
+    this.normalAbilityId = speciesConfig.attackId || 'basic_laser';
+    this.specialAbilityId = speciesConfig.abilityId || 'aoe_pulse';
+
+    this.creatureFullness = fullness;
+    this.creatureAffection = affection;
+
     this.runSeed = Math.floor(Math.random() * 1000000);
     this.runId = `run_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
   }

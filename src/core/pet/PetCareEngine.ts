@@ -1,4 +1,4 @@
-import { PermanentCreatureProfile } from '../../types/creature';
+import { OwnedCreature, PermanentCreatureProfile } from '../../types/creature';
 
 export interface CareBonus {
   damageMultiplier: number;
@@ -13,28 +13,40 @@ export class PetCareEngine {
   private static rapidPetCount: number = 0;
 
   /**
-   * Consumes food to reduce hunger and slightly boost affection
+   * Consumes food to increase fullness and slightly boost affection
    */
   public static feedPet(
-    profile: PermanentCreatureProfile,
+    creature: OwnedCreature | PermanentCreatureProfile,
     amount: number = 25,
   ): {
+    fullness: number;
     hunger: number;
     affection: number;
   } {
-    profile.hunger = Math.min(100, Math.max(0, profile.hunger + amount));
-    profile.affection = Math.min(100, Math.max(0, profile.affection + 5));
-    profile.lastCareTimestamp = Date.now();
-    return { hunger: profile.hunger, affection: profile.affection };
+    if ('fullness' in creature) {
+      creature.fullness = Math.min(100, Math.max(0, creature.fullness + amount));
+      creature.affection = Math.min(100, Math.max(0, creature.affection + 5));
+      return {
+        fullness: creature.fullness,
+        hunger: creature.fullness,
+        affection: creature.affection,
+      };
+    } else {
+      creature.hunger = Math.min(100, Math.max(0, creature.hunger + amount));
+      creature.affection = Math.min(100, Math.max(0, creature.affection + 5));
+      creature.lastCareTimestamp = Date.now();
+      return { fullness: creature.hunger, hunger: creature.hunger, affection: creature.affection };
+    }
   }
 
   /**
    * Tapping/petting creature to boost affection with diminishing returns on rapid petting
    */
   public static petCreature(
-    profile: PermanentCreatureProfile,
+    creature: OwnedCreature | PermanentCreatureProfile,
     amount: number = 10,
   ): {
+    fullness: number;
     hunger: number;
     affection: number;
     mood: PetMood;
@@ -62,12 +74,14 @@ export class PetCareEngine {
     }
 
     const gainedAffection = Math.max(1, Math.round(amount * multiplier));
-    profile.affection = Math.min(100, Math.max(0, profile.affection + gainedAffection));
-    profile.lastCareTimestamp = now;
+    creature.affection = Math.min(100, Math.max(0, creature.affection + gainedAffection));
+
+    const currentFullness = 'fullness' in creature ? creature.fullness : creature.hunger;
 
     return {
-      hunger: profile.hunger,
-      affection: profile.affection,
+      fullness: currentFullness,
+      hunger: currentFullness,
+      affection: creature.affection,
       mood,
       gainedAffection,
     };
@@ -82,36 +96,43 @@ export class PetCareEngine {
   }
 
   /**
-   * Applies gradual hunger decay over elapsed time
+   * Applies gradual fullness decay over elapsed time
    */
   public static updateCareDecay(
-    profile: PermanentCreatureProfile,
+    creature: OwnedCreature | PermanentCreatureProfile,
     deltaSeconds: number,
     decayRatePerSec: number = 0.5,
   ): void {
-    profile.hunger = Math.max(0, profile.hunger - deltaSeconds * decayRatePerSec);
+    if ('fullness' in creature) {
+      creature.fullness = Math.max(0, creature.fullness - deltaSeconds * decayRatePerSec);
+    } else {
+      creature.hunger = Math.max(0, creature.hunger - deltaSeconds * decayRatePerSec);
+    }
   }
 
   /**
-   * Calculates Care-to-Combat stat multipliers based on hunger and affection levels
+   * Calculates Care-to-Combat stat multipliers based on fullness and affection levels
    */
-  public static calculateCareBonus(profile: PermanentCreatureProfile): CareBonus {
+  public static calculateCareBonus(creature: OwnedCreature | PermanentCreatureProfile): CareBonus {
     let damageMultiplier = 1.0;
     let speedMultiplier = 1.0;
     let hpMultiplier = 1.0;
 
-    // Full belly bonus (hunger >= 80)
-    if (profile.hunger >= 80) {
+    const fullness = 'fullness' in creature ? creature.fullness : creature.hunger;
+    const affection = creature.affection;
+
+    // Full belly bonus (fullness >= 80)
+    if (fullness >= 80) {
       damageMultiplier += 0.15; // +15% damage
-    } else if (profile.hunger < 25) {
+    } else if (fullness < 25) {
       damageMultiplier -= 0.15; // -15% damage penalty if starving
     }
 
     // High affection bonus (affection >= 80)
-    if (profile.affection >= 80) {
+    if (affection >= 80) {
       speedMultiplier += 0.15; // +15% attack speed
       hpMultiplier += 0.1; // +10% max HP
-    } else if (profile.affection < 25) {
+    } else if (affection < 25) {
       speedMultiplier -= 0.1; // -10% attack speed penalty
     }
 

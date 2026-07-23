@@ -7,6 +7,7 @@ export interface RunRewardPayload {
   coinsEarned: number;
   expEarned: number;
   droppedEquipment: string[];
+  expMultiplier?: number;
 }
 
 export class RunRewardSettlementService {
@@ -44,9 +45,12 @@ export class RunRewardSettlementService {
       updatedInventory.push(...payload.droppedEquipment);
     }
 
-    // Resolve EXP onto active creature
+    // Resolve EXP onto active creature (applying expMultiplier if present)
+    const mult = payload.expMultiplier && payload.expMultiplier > 0 ? payload.expMultiplier : 1.0;
+    const finalExp = Math.round(Math.max(0, payload.expEarned) * mult);
+
     const activeCreature = SaveManager.getActiveCreature(currentSave);
-    const { levelsGained } = CreatureEngine.addExpToCreature(activeCreature, payload.expEarned);
+    const { levelsGained } = CreatureEngine.addExpToCreature(activeCreature, finalExp);
 
     const updatedSave = SaveManager.updateSaveData({
       totalCoins: updatedCoins,

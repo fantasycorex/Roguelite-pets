@@ -185,6 +185,14 @@ export class CombatEngine {
     const baseAngularSpeed = 1.5;
     let speedFactor = (this.runState.petStats.moveSpeed || 100) / 100;
 
+    // Heart Bond trait (+15% patrol speed when affection >= 80)
+    if (
+      this.runState.creatureAffection >= 80 &&
+      this.runState.activeTraits.includes('heart_bond')
+    ) {
+      speedFactor *= 1.15;
+    }
+
     if (this.hasStatusEffect('creature', 'slow')) {
       speedFactor *= 0.5;
     }
@@ -232,6 +240,35 @@ export class CombatEngine {
       const behaviour = enemy.config.behaviour;
       const distToTower = Math.hypot(enemy.x - this.towerCenter.x, enemy.y - this.towerCenter.y);
       const distToPet = Math.hypot(enemy.x - this.runState.petX, enemy.y - this.runState.petY);
+
+      // Handle Dedicated Boss behavior ('boss_sovereign')
+      if (behaviour?.style === 'boss_sovereign') {
+        enemy.attackTimer = (enemy.attackTimer || 0) + deltaSeconds;
+        if (
+          (distToPet <= behaviour.attackRange && !this.runState.isCreatureDowned) ||
+          distToTower <= behaviour.attackRange
+        ) {
+          if (enemy.attackTimer >= 1 / behaviour.attackSpeed) {
+            enemy.attackTimer = 0;
+            if (!this.runState.isCreatureDowned && distToPet <= behaviour.attackRange) {
+              this.damageCreature(
+                enemy.instanceId,
+                behaviour.attackDamage,
+                behaviour.statusEffectsOnHit,
+              );
+            } else {
+              this.runState.towerHp = Math.max(0, this.runState.towerHp - behaviour.attackDamage);
+              this.triggerOnTowerDamaged(behaviour.attackDamage);
+              eventBus.emit('TOWER_DAMAGED', {
+                currentHp: this.runState.towerHp,
+                maxHp: this.runState.maxTowerHp,
+                damage: behaviour.attackDamage,
+              });
+            }
+          }
+          continue; // Pauses path movement while attacking boss target
+        }
+      }
 
       // Handle Ranged Enemy behavior ('ranged_path')
       if (
@@ -285,6 +322,13 @@ export class CombatEngine {
 
         if (pos.reachedEnd) {
           this.runState.towerHp = Math.max(0, this.runState.towerHp - enemy.config.damageToTower);
+
+          // Apply status effects on hit (e.g. Shadow Wisp slow on hit)
+          if (behaviour?.statusEffectsOnHit) {
+            for (const eff of behaviour.statusEffectsOnHit) {
+              this.applyStatusEffect('creature', eff, enemy.instanceId);
+            }
+          }
 
           // Process 'on_tower_damaged' traits (e.g., Aegis Shield barrier)
           this.triggerOnTowerDamaged(enemy.config.damageToTower);
@@ -453,6 +497,15 @@ export class CombatEngine {
 
       if (target) {
         this.fireProjectile(target as ActiveEnemy);
+
+        // Multi-Beam trait: fire at second target if available
+        if (this.runState.activeTraits.includes('multi_beam') && activeEnemiesArray.length > 1) {
+          const secondTarget = activeEnemiesArray.find((e) => e.instanceId !== target.instanceId);
+          if (secondTarget) {
+            this.fireProjectile(secondTarget);
+          }
+        }
+
         const cooldown = 1 / this.runState.petStats.attackSpeed;
         this.runState.petAttackCooldownTimer = cooldown;
       }
@@ -514,9 +567,18 @@ export class CombatEngine {
   }
 
   private triggerSpecialAbility(): void {
-    const ability = ABILITIES_DATA.aoe_pulse;
+    const ability = ABILITIES_DATA[this.runState.specialAbilityId] || ABILITIES_DATA.aoe_pulse;
     const radius = ability.radius || 140;
-    const aoeDamage = ability.damage || 40;
+    let aoeDamage = ability.damage || 40;
+
+    // Apply traits to special ability
+    if (
+      this.runState.creatureFullness >= 80 &&
+      this.runState.activeTraits.includes('full_belly_fury')
+    ) {
+      aoeDamage *= 1.2;
+    }
+
     const hitEnemies: string[] = [];
 
     for (const enemy of this.runState.activeEnemies.values()) {
@@ -547,6 +609,15 @@ export class CombatEngine {
           }
         }
 
+        // Elemental Overload trait: apply burn status on special hit
+        if (this.runState.activeTraits.includes('elemental_overload')) {
+          this.applyStatusEffect(
+            enemy.instanceId,
+            { type: 'burn', duration: 3.0, value: 8, tickInterval: 1.0 },
+            'creature',
+          );
+        }
+
         if (enemy.currentHp <= 0) {
           this.handleEnemyDeath(enemy);
         }
@@ -563,10 +634,26 @@ export class CombatEngine {
   }
 
   private fireProjectile(target: ActiveEnemy): void {
-    const ability = ABILITIES_DATA.basic_laser;
+    const ability = ABILITIES_DATA[this.runState.normalAbilityId] || ABILITIES_DATA.basic_laser;
     let baseDamage = this.runState.petStats.attackDamage || ability.damage;
 
-    // Process 'on_hit' / 'on_critical' trait calculations
+    // Full Belly Fury trait (+20% damage when fullness >= 80)
+    if (
+      this.runState.creatureFullness >= 80 &&
+      this.runState.activeTraits.includes('full_belly_fury')
+    ) {
+      baseDamage *= 1.2;
+    }
+
+    // Protective Rage trait (+25% damage when tower HP <= 50%)
+    if (
+      this.runState.towerHp / this.runState.maxTowerHp <= 0.5 &&
+      this.runState.activeTraits.includes('protective_rage')
+    ) {
+      baseDamage *= 1.25;
+    }
+
+    // Process 'on_critical' trait calculations
     let isCrit = false;
     for (const traitId of this.runState.activeTraits) {
       const trait = TRAITS_DATA[traitId];
@@ -618,6 +705,28 @@ export class CombatEngine {
       if (proj.progress >= 1.0) {
         if (targetEnemy && targetEnemy.state === 'ALIVE') {
           targetEnemy.currentHp -= proj.damage;
+
+          // Chain Lightning trait: fork projectile to next nearest enemy
+          if (this.runState.activeTraits.includes('chain_lightning') && !proj.isChain) {
+            const otherEnemies = Array.from(this.runState.activeEnemies.values()).filter(
+              (e) => e.state === 'ALIVE' && e.instanceId !== targetEnemy.instanceId,
+            );
+            if (otherEnemies.length > 0) {
+              const chainTarget = otherEnemies[0];
+              this.runState.activeProjectiles.push({
+                id: `proj_chain_${Date.now()}`,
+                startX: targetEnemy.x,
+                startY: targetEnemy.y,
+                targetX: chainTarget.x,
+                targetY: chainTarget.y,
+                targetEnemyInstanceId: chainTarget.instanceId,
+                damage: Math.round(proj.damage * 0.7),
+                progress: 0,
+                speed: 5.0,
+                isChain: true,
+              });
+            }
+          }
 
           // Apply status effects on hit (Ignite Touch burn, Frost Touch slow, Stun)
           for (const traitId of this.runState.activeTraits) {

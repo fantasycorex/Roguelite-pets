@@ -40,17 +40,33 @@ export class DefenseScene extends Phaser.Scene {
   private traitModalContainer!: Phaser.GameObjects.Container;
   private resultsModalContainer!: Phaser.GameObjects.Container;
 
+  private speciesId: string = 'guardian_blob';
+  private fullness: number = 100;
+  private affection: number = 100;
+  private activeNextRunBuff?: { type: string; multiplier: number };
+
   constructor() {
     super({ key: 'DefenseScene' });
   }
 
-  init(data?: { petStats?: CreatureStats; mapId?: string }): void {
+  init(data?: {
+    petStats?: CreatureStats;
+    mapId?: string;
+    speciesId?: string;
+    fullness?: number;
+    affection?: number;
+    activeNextRunBuff?: { type: string; multiplier: number };
+  }): void {
     if (data && data.petStats) {
       this.petStats = { ...data.petStats };
     } else {
       this.petStats = { ...DEFAULT_CREATURE_STATS };
     }
     this.selectedMapId = data?.mapId || 'heartwood_clearing';
+    this.speciesId = data?.speciesId || 'guardian_blob';
+    this.fullness = data?.fullness ?? 100;
+    this.affection = data?.affection ?? 100;
+    this.activeNextRunBuff = data?.activeNextRunBuff;
     this.waveSet = this.selectedMapId === 'moonlit_crossing' ? WAVES_DATA_MAP2 : WAVES_DATA_MAP1;
   }
 
@@ -59,7 +75,13 @@ export class DefenseScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // Run State & Map Config
-    this.runState = new BattleRunState(this.petStats, this.selectedMapId);
+    this.runState = new BattleRunState(
+      this.petStats,
+      this.selectedMapId,
+      this.speciesId,
+      this.fullness,
+      this.affection,
+    );
     this.runState.totalWaves = this.waveSet.length;
     const waypoints = this.runState.mapConfig.waypoints;
     const secondaryWaypoints = this.runState.mapConfig.secondaryWaypoints;
@@ -213,6 +235,8 @@ export class DefenseScene extends Phaser.Scene {
         coinsEarned: this.runState.coinsCollected,
         expEarned: this.runState.expEarned,
         droppedEquipment: this.runState.droppedEquipment,
+        expMultiplier:
+          this.activeNextRunBuff?.type === 'exp_buff' ? this.activeNextRunBuff.multiplier : 1.0,
       });
 
       eventBus.emit('DEFENSE_ABORTED');
@@ -664,6 +688,8 @@ export class DefenseScene extends Phaser.Scene {
       coinsEarned: this.runState.coinsCollected,
       expEarned: this.runState.expEarned,
       droppedEquipment: this.runState.droppedEquipment,
+      expMultiplier:
+        this.activeNextRunBuff?.type === 'exp_buff' ? this.activeNextRunBuff.multiplier : 1.0,
     });
 
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);

@@ -8,6 +8,7 @@ export interface TargetableEnemy {
   maxHp: number;
   distanceCovered: number;
   damageToTower?: number;
+  config?: { damageToTower?: number };
 }
 
 export class TargetingEngine {
@@ -61,7 +62,7 @@ export class TargetingEngine {
         let bestEnemy: TargetableEnemy | null = null;
         let maxThreat = -1;
         for (const enemy of inRangeEnemies) {
-          const threat = enemy.damageToTower || 10;
+          const threat = enemy.config?.damageToTower ?? enemy.damageToTower ?? 10;
           if (threat > maxThreat) {
             maxThreat = threat;
             bestEnemy = enemy;
