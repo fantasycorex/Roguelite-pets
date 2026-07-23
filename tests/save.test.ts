@@ -23,7 +23,7 @@ Object.defineProperty(global, 'localStorage', {
   value: localStorageMock,
 });
 
-describe('SaveManager Unit Tests', () => {
+describe('SaveManager Unit Tests & V1-V4 Schema Migrations', () => {
   beforeEach(() => {
     localStorageMock.clear();
   });
@@ -55,6 +55,39 @@ describe('SaveManager Unit Tests', () => {
     expect(loaded.totalCoins).toBe(250);
     expect(loaded.activeCreatureInstanceId).toBe('c_spark_1');
     expect(loaded.inventory).toContain('ruby_pendant');
+  });
+
+  it('migrates legacy V1 schema automatically to V4 schema', () => {
+    const v1Save = {
+      version: 1,
+      totalCoins: 150,
+      inventory: ['wooden_collar'],
+      creatureProfile: {
+        id: 'c1',
+        name: 'Slimey',
+        level: 3,
+        currentExp: 50,
+        hunger: 20, // 20 hunger = 80 fullness
+        affection: 70,
+        baseStats: {
+          maxHp: 180,
+          attackDamage: 12,
+          attackSpeed: 1.0,
+          attackRange: 100,
+          moveSpeed: 80,
+          specialCooldown: 10,
+        },
+      },
+    };
+
+    localStorageMock.setItem('ROGUELITE_PETS_SAVE_DATA_V1', JSON.stringify(v1Save));
+    const loaded = SaveManager.loadGame();
+
+    expect(loaded.version).toBe(4);
+    expect(loaded.totalCoins).toBe(150);
+    expect(loaded.foodInventory).toBeDefined();
+    expect(loaded.ownedCreatures.length).toBeGreaterThan(0);
+    expect(loaded.ownedCreatures[0].fullness).toBe(80); // 100 - 20 = 80
   });
 
   it('resetSave removes stored data and re-initializes defaults', () => {

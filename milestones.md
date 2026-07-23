@@ -129,3 +129,52 @@
 - [x] Settings menu & audio controls (Master volume slider, Audio Mute toggle, Screen Shake toggle, Reduced Motion toggle).
 - [x] Touch target parity (min 44px height) & Keyboard accessibility (`SPACE` to pause, `1`-`3` to select traits, `R` to reroll, `ENTER` to play).
 - [x] GitHub Actions CI pipeline (`.github/workflows/ci.yml` running lint, format, test, and build).
+
+---
+
+## Phase 3 — Closed Beta and Productisation
+
+### Milestone 15 — Phase 2 Certification and Correctness
+- [x] Replace legacy hunger/fullness bridge with canonical `fullness` care model.
+- [x] Correct V1–V4 save migrations & backward compatibility tests.
+- [x] Apply and consume next-run food buffs (+10% EXP, +15% Speed) exactly once per treat.
+- [x] Wire all trait effects (`multi_beam`, `chain_lightning`, `full_belly_fury`, `heart_bond`, `protective_rage`, `elemental_overload`).
+- [x] Wire enemy & boss combat behaviors (Shadow Wisp slow status on hit & Void Sovereign boss melee attack loop).
+- [x] Repair `highest_threat` targeting mode to inspect nested `config.damageToTower`.
+- [x] Implement explicit run abort reward policy in `DefenseScene` (keep partial coins/EXP earned up to abort).
+- [x] Synchronise persisted settings with `SoundEngine` on startup.
+- [x] Fix volume label display string interpolation in `TitleScene`.
+- [x] Verify every interactive button against 44px minimum touch-target requirement.
+- [x] Comprehensive test suite covering every food item, trait effect, ability, and enemy behavior.
+- [x] End-to-end integration test (`tests/full_run_integration.test.ts`) covering `HabitatScene` -> `DefenseScene` -> `Results` -> `SaveManager`.
+
+### Milestone 16 — Architecture Refactor and Content Validation
+- [ ] Extract feature controllers and UI components (`HabitatController`, `CarePanel`, `RunController`, `CombatHUD`, etc.).
+- [ ] Implement services (`CareService`, `ShopService`, `RunPreparationService`, `InventoryService`, `EvolutionService`, `SettingsCoordinator`).
+- [ ] Implement startup content validator checking all data definitions (species, wave enemies, traits, equipment slots, map waypoints).
+
+### Milestone 17 — True Creature Combat Kits
+- [ ] Guardian kit: short-range impact, taunt nearby fighters, protective shield.
+- [ ] Spark kit: ranged fire projectile, burn splash, actual `fire_blast` AoE, flame zones.
+- [ ] Prowler kit: fast precision strike, prioritize runners/saboteurs, rapid multi-strike dash.
+
+### Milestone 18 — Run Director and Replayability
+- [ ] Authored run structure (`RunConfig`, `EncounterConfig` for normal, elite, rest, boss encounters).
+- [ ] Branching encounter choices, elite rewards, difficulty tiers (`Normal`, `Challenging`, `Guardian`).
+- [ ] Seed entry & replay, run history tracking, 3rd map, boss telegraph vulnerability windows.
+
+### Milestone 19 — Meaningful Meta-Progression
+- [ ] Trait unlock progression through creature levels, victories, and evolutions.
+- [ ] Equipment discovery, map/difficulty unlocks, species mastery tracks, save export/import.
+
+### Milestone 20 — Production Visual and Audio Pass
+- [ ] Sprite atlas pipeline & animation state machine (idle, move, attack, special, hurt, downed, happy, eating, evolving).
+- [ ] Object pooling for projectiles & VFX, audio buses (music, SFX, master volume).
+
+### Milestone 21 — Balance, Performance and Accessibility
+- [ ] Headless deterministic run simulator for automated balancing & win-rate reporting.
+- [ ] Mobile-browser performance profiling, responsive HUD, colorblind-safe rarity indicators.
+
+### Milestone 22 — Release Engineering and Closed Beta
+- [ ] Playwright browser E2E tests, visual regression screenshots, automated smoke test.
+- [ ] Production build size report, diagnostic report downloader, release tag `v0.3.0-beta.1`.
