@@ -40,9 +40,9 @@ describe('TargetingEngine Tests', () => {
     const range = 60;
 
     const enemies: TargetableEnemy[] = [
-      { instanceId: '1', x: 200, y: 200, currentHp: 50, distanceCovered: 150 }, // Out of range
-      { instanceId: '2', x: 70, y: 50, currentHp: 50, distanceCovered: 80 }, // In range
-      { instanceId: '3', x: 60, y: 50, currentHp: 50, distanceCovered: 120 }, // In range, further down path
+      { instanceId: '1', x: 200, y: 200, currentHp: 50, maxHp: 50, distanceCovered: 150 }, // Out of range
+      { instanceId: '2', x: 70, y: 50, currentHp: 50, maxHp: 50, distanceCovered: 80 }, // In range
+      { instanceId: '3', x: 60, y: 50, currentHp: 50, maxHp: 50, distanceCovered: 120 }, // In range, further down path
     ];
 
     const target = TargetingEngine.selectTarget(petX, petY, range, enemies);
@@ -52,7 +52,7 @@ describe('TargetingEngine Tests', () => {
 
   it('returns null if no enemies in attack range', () => {
     const target = TargetingEngine.selectTarget(0, 0, 10, [
-      { instanceId: '1', x: 100, y: 100, currentHp: 50, distanceCovered: 50 },
+      { instanceId: '1', x: 100, y: 100, currentHp: 50, maxHp: 50, distanceCovered: 50 },
     ]);
     expect(target).toBeNull();
   });

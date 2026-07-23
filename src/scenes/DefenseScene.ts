@@ -22,9 +22,12 @@ export class DefenseScene extends Phaser.Scene {
   > = new Map();
   private petSprite!: Phaser.GameObjects.Sprite;
   private towerHpText!: Phaser.GameObjects.Text;
+  private petHpText!: Phaser.GameObjects.Text;
   private waveText!: Phaser.GameObjects.Text;
   private coinsText!: Phaser.GameObjects.Text;
   private bannerText!: Phaser.GameObjects.Text;
+  private speedBtnText!: Phaser.GameObjects.Text;
+  private pauseBtnText!: Phaser.GameObjects.Text;
   private pathGraphics!: Phaser.GameObjects.Graphics;
   private traitModalContainer!: Phaser.GameObjects.Container;
   private resultsModalContainer!: Phaser.GameObjects.Container;
@@ -45,19 +48,16 @@ export class DefenseScene extends Phaser.Scene {
     phaseManager.setPhase(GamePhase.DEFENSE);
     const { width, height } = this.scale;
 
+    // Run State & Map Config
+    this.runState = new BattleRunState(this.petStats);
+    this.runState.totalWaves = WAVES_DATA.length;
+    const waypoints = this.runState.mapConfig.waypoints;
+    const towerPos = this.runState.mapConfig.towerPosition;
+
     // Map Background
     this.add.rectangle(width / 2, height / 2, width, height, 0x0f172a);
 
-    // Waypoints & Path
-    const waypoints = [
-      { x: -30, y: height / 2 },
-      { x: 320, y: 180 },
-      { x: 640, y: 540 },
-      { x: 960, y: 360 },
-      { x: width / 2, y: height / 2 },
-    ];
-    const towerPos = { x: width / 2, y: height / 2 };
-
+    // Waypoints & Path Graphics
     this.pathGraphics = this.add.graphics();
     this.pathGraphics.lineStyle(12, 0x334155, 0.8);
     this.pathGraphics.beginPath();
@@ -70,14 +70,12 @@ export class DefenseScene extends Phaser.Scene {
     // Central Tower & Patrol Circle
     this.add.sprite(towerPos.x, towerPos.y, 'tower_texture');
     this.pathGraphics.lineStyle(2, 0x38b000, 0.3);
-    this.pathGraphics.strokeCircle(towerPos.x, towerPos.y, 80);
+    this.pathGraphics.strokeCircle(towerPos.x, towerPos.y, this.runState.mapConfig.patrolRadius);
 
     // Pet Sprite
     this.petSprite = this.add.sprite(towerPos.x + 80, towerPos.y, 'pet_texture');
 
-    // Combat Engine & Run State
-    this.runState = new BattleRunState(this.petStats);
-    this.runState.totalWaves = WAVES_DATA.length;
+    // Initialize CombatEngine
     this.combatEngine = new CombatEngine(waypoints, towerPos, this.runState);
 
     // UI Header with dynamic total wave count
@@ -96,11 +94,24 @@ export class DefenseScene extends Phaser.Scene {
     });
 
     this.towerHpText = this.add
-      .text(towerPos.x, towerPos.y - 65, 'Tower HP: 100/100', {
-        fontSize: '16px',
+      .text(towerPos.x - 120, towerPos.y - 65, 'Tower HP: 100/100', {
+        fontSize: '15px',
         color: '#80ed99',
         fontStyle: 'bold',
       })
+      .setOrigin(0.5);
+
+    this.petHpText = this.add
+      .text(
+        towerPos.x + 120,
+        towerPos.y - 65,
+        `Pet HP: ${this.runState.creatureCurrentHp}/${this.runState.creatureMaxHp}`,
+        {
+          fontSize: '15px',
+          color: '#4cc9f0',
+          fontStyle: 'bold',
+        },
+      )
       .setOrigin(0.5);
 
     this.bannerText = this.add
@@ -110,6 +121,44 @@ export class DefenseScene extends Phaser.Scene {
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
+
+    // Developer Speed & Pause Controls
+    const speedBtn = this.add
+      .rectangle(width - 320, 35, 70, 32, 0x334155)
+      .setInteractive({ useHandCursor: true });
+    this.speedBtnText = this.add
+      .text(width - 320, 35, '⚡ 1x', {
+        fontSize: '13px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    speedBtn.on('pointerdown', () => {
+      let nextScale = 1.0;
+      if (this.runState.timeScale === 1.0) nextScale = 2.0;
+      else if (this.runState.timeScale === 2.0) nextScale = 4.0;
+      else nextScale = 1.0;
+      this.combatEngine.setTimeScale(nextScale);
+      this.speedBtnText.setText(`⚡ ${nextScale}x`);
+    });
+
+    const pauseBtn = this.add
+      .rectangle(width - 230, 35, 70, 32, 0x334155)
+      .setInteractive({ useHandCursor: true });
+    this.pauseBtnText = this.add
+      .text(width - 230, 35, '⏸️ PAUSE', {
+        fontSize: '12px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+
+    pauseBtn.on('pointerdown', () => {
+      const isPaused = this.combatEngine.togglePause();
+      this.pauseBtnText.setText(isPaused ? '▶️ PLAY' : '⏸️ PAUSE');
+      this.bannerText.setText(isPaused ? 'GAME PAUSED' : '');
+    });
 
     // Back Button
     const btn = this.add
@@ -125,7 +174,6 @@ export class DefenseScene extends Phaser.Scene {
 
     btn.on('pointerdown', () => {
       this.cleanupEvents();
-      // Settle rewards once via service
       runRewardSettlementService.settleRunRewards({
         runId: this.runState.runId,
         coinsEarned: this.runState.coinsCollected,
@@ -156,6 +204,9 @@ export class DefenseScene extends Phaser.Scene {
     eventBus.on('ENEMY_KILLED', this.onEnemyKilled);
     eventBus.on('EQUIPMENT_DROPPED', this.onEquipmentDropped);
     eventBus.on('CREATURE_ATTACKED', this.onCreatureAttacked);
+    eventBus.on('CREATURE_DAMAGED', this.onCreatureDamaged);
+    eventBus.on('CREATURE_DOWNED', this.onCreatureDowned);
+    eventBus.on('CREATURE_REVIVED', this.onCreatureRevived);
     eventBus.on('SPECIAL_ABILITY_USED', this.onSpecialAbilityUsed);
     eventBus.on('TOWER_DAMAGED', this.onTowerDamaged);
     eventBus.on('WAVE_STARTED', this.onWaveStarted);
@@ -169,6 +220,9 @@ export class DefenseScene extends Phaser.Scene {
     eventBus.off('ENEMY_KILLED', this.onEnemyKilled);
     eventBus.off('EQUIPMENT_DROPPED', this.onEquipmentDropped);
     eventBus.off('CREATURE_ATTACKED', this.onCreatureAttacked);
+    eventBus.off('CREATURE_DAMAGED', this.onCreatureDamaged);
+    eventBus.off('CREATURE_DOWNED', this.onCreatureDowned);
+    eventBus.off('CREATURE_REVIVED', this.onCreatureRevived);
     eventBus.off('SPECIAL_ABILITY_USED', this.onSpecialAbilityUsed);
     eventBus.off('TOWER_DAMAGED', this.onTowerDamaged);
     eventBus.off('WAVE_STARTED', this.onWaveStarted);
@@ -198,6 +252,26 @@ export class DefenseScene extends Phaser.Scene {
     };
     soundEngine.playHitSound();
     this.updateHpBar(instanceId, currentHp, maxHp);
+  };
+
+  private onCreatureDamaged = (data: unknown): void => {
+    const { currentHp, maxHp } = data as { currentHp: number; maxHp: number };
+    soundEngine.playHitSound();
+    this.petHpText.setText(`Pet HP: ${Math.round(currentHp)}/${maxHp}`);
+  };
+
+  private onCreatureDowned = (): void => {
+    soundEngine.playHitSound();
+    this.petSprite.setAlpha(0.4);
+    this.petHpText.setText('Pet HP: DOWNED (Reviving...)');
+    this.petHpText.setColor('#ff0054');
+  };
+
+  private onCreatureRevived = (data: unknown): void => {
+    const { currentHp } = data as { currentHp: number };
+    this.petSprite.setAlpha(1.0);
+    this.petHpText.setText(`Pet HP: ${Math.round(currentHp)}/${this.runState.creatureMaxHp}`);
+    this.petHpText.setColor('#4cc9f0');
   };
 
   private onEnemyKilled = (data: unknown): void => {

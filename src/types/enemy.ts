@@ -1,3 +1,5 @@
+import { EnemyBehaviourConfig } from './combat';
+
 export interface EnemyConfig {
   id: string;
   name: string;
@@ -7,4 +9,5 @@ export interface EnemyConfig {
   coinReward: number;
   expReward: number;
   colorHex: number;
+  behaviour?: EnemyBehaviourConfig;
 }

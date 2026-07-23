@@ -76,19 +76,20 @@
 - [x] Add regression unit tests for reward settlement, death rewards, trait unlocks, and save schema migrations.
 
 ### Milestone 9 — Data-Driven Combat 2.0
-- [ ] Typed definitions for `MapConfig`, `TowerConfig`, `CreatureCombatConfig`, `AbilityConfig`, `EnemyBehaviourConfig`, `StatusEffectConfig`.
-- [ ] Creature current HP & downed state handling.
-- [ ] Enemy behavior variations:
-  - Fast runners ignoring pet to rush tower.
-  - Tanks stopping to attack pet.
+- [x] Typed definitions for `MapConfig`, `TowerConfig`, `CreatureCombatConfig`, `AbilityConfig`, `EnemyBehaviourConfig`, `StatusEffectConfig`.
+- [x] Creature current HP & downed state handling (5-second revive timer).
+- [x] Enemy behavior variations:
+  - Fast runners (`Shadow Runner`) ignoring pet to rush tower.
+  - Tanks (`Void Golem`) stopping to attack pet (`fight_creature`).
   - Ranged enemies attacking from path.
-- [ ] Patrol & interception speed driven by creature `moveSpeed`.
-- [ ] Targeting modes: Nearest, Closest to tower, Lowest HP, Highest threat.
-- [ ] Status effects: Slow, Burn, Poison, Stun, Shield.
-- [ ] Data-driven normal & special abilities.
-- [ ] Developer pause, resume, and game speed controls.
+- [x] Patrol & interception speed driven by creature `moveSpeed`.
+- [x] Targeting modes: Nearest, Closest to tower, Lowest HP, Highest threat.
+- [x] Status effects engine: Slow, Burn, Poison, Stun, Shield.
+- [x] Data-driven normal & special abilities (`abilities.data.ts`).
+- [x] Developer pause, resume, and game speed controls (1x, 2x, 4x).
+- [x] Exit condition: New ability, enemy behavior, or map addable primarily through typed data without modifying `CombatEngine`.
 
-### Milestone 10 — Creature Identity, Level & Evolution Framework
+### Milestone 10 — Creature Identity, Level and Evolution Framework
 - [ ] Separate `CreatureSpeciesConfig` from `OwnedCreature` saved state.
 - [ ] Initial 3 starter creatures with distinct roles:
   - **Guardian** (High HP, taunt/block, benefits strongly from affection).
@@ -105,19 +106,19 @@
 - [ ] Weighted rarity, duplicate protection, 1 reroll per wave, and current-build HUD panel.
 - [ ] Target pool of 20–24 traits for alpha.
 
-### Milestone 12 — Maps, Enemies & Boss Encounter
+### Milestone 12 — Maps, Enemies and Boss Encounter
 - [ ] Map 1 — Heartwood Clearing (Introductory layout).
 - [ ] Map 2 — Moonlit Crossing (Dual merging paths, multi-threats).
 - [ ] Expanded enemy roster: Gloom Beetle, Shadow Runner, Void Golem, Spitter, Wisp, Saboteur.
 - [ ] Boss encounter with telegraphs, 2 phases, minion spawns, vulnerability windows.
 
-### Milestone 13 — Habitat, Equipment & Economy 2.0
+### Milestone 13 — Habitat, Equipment and Economy 2.0
 - [ ] Food inventory & 3 food types with distinct effects + shop.
 - [ ] Petting cooldown/diminishing returns & mood indicators.
 - [ ] Equipment slots: Collar, Charm, Toy.
 - [ ] Item instance IDs, equip comparison, selling, and fixed stat rolls.
 
-### Milestone 14 — Alpha UX, Accessibility & Playtesting
+### Milestone 14 — Alpha UX, Accessibility and Playtesting
 - [ ] Title screen, settings menu, separate audio volumes.
 - [ ] Touch target parity & keyboard accessibility.
 - [ ] Screen shake toggle, reduced motion, colorblind rarity indicators.
